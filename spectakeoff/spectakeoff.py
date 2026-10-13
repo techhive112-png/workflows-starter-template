@@ -1098,10 +1098,15 @@ def unit_code(noun):
     return "EA"
 
 
+# "five years minimum field experience" states who may do the work, not a period the Owner buys
+EXPERIENCE_RE = re.compile(NUM + r"[\s-]*years?\b[^.]{0,40}?\bexperience\b", re.I)
+
+
 def quantities(sentence):
     """All (qty, unit, noun) pairs in a sentence, ignoring deadlines such as
-    'within 10 days after acceptance'."""
+    'within 10 days after acceptance' and qualifications such as 'five years experience'."""
     s = DEADLINE_RE.sub(lambda m: " " * len(m.group(0)), sentence)
+    s = EXPERIENCE_RE.sub(lambda m: " " * len(m.group(0)), s)
     pairs = []
     for m in UNIT_RE.finditer(s):
         q = to_number(m.group(1))
@@ -1140,6 +1145,10 @@ SKIP_RE = re.compile(r"^\s*(?:See|Refer to)\s+(?:Division\s+[\d ]+)?Section|^\\s
                      r"other guarantees required|longer than|\u00a7|User Notes|"
                      r"\bwaives? the right|\bfails to notify\b|\bclaim for breach\b|"
                      r"\bquote\b[^.]{0,80}\bwarrant|"
+                     r"[\u2610\u2611\u2612\u00a9]|Supporting Data Attached|"      # blank form fields
+                     r"^\s*Section\s+\d{2}[ -]?\d{2}[ -]?\d{2}\b|"               # cross-reference entry
+                     r"^\s*\w[\w ]{0,40}:\s*(?:Furnish|Provide) the following\b|"  # header of a list
+                     r""
                      r"\bwill be subject to\b|\bcause for Owner to charge\b|\bBe prepared to\b|"
                      r"\b(?:advance|days?'?)\s*(?:written\s+)?notice\b|"
                      r"\bif unable to\b|\bre-?schedule\b|\bshall be accomplished by\b|"
@@ -1172,6 +1181,9 @@ STAFFING_RE = re.compile(r"\b(?:qualified|experienced|factory-authorized|certifi
                          r"representatives?|technicians?|service \w+)\b|"
                          r"\bEngage\s+(?:a\s+|an\s+)?(?:qualified\s+)?(?:facilitator|instructors?|"
                          r"firm|entity)\b", re.I)
+# "Tool Kit:", "Touch-up Paint:", "Operation and Maintenance Data:", "Instructional Videos:" -
+# a closeout item named by a label at the start of the sentence, the way SectionFormat lists them
+ITEM_LABEL = re.compile(r"^[A-Z][A-Za-z0-9 ,&'/()\-]{2,60}:\s")
 QNS_RE = re.compile(r"\bsufficient\b|\bfinal copies\b|\ball (?:spare|extra)\b|\badditional copies\b", re.I)
 
 
@@ -1298,6 +1310,11 @@ def extract(pdf_path, ocr=None):
             kind = classify(sent, it["heading"])
             if not kind:
                 continue
+            # "Provide a qualified instructor with five years experience", "Engage a
+            # factory-authorized service representative": these state WHO performs the work.
+            # The training itself is stated separately and is the row.
+            if kind == "Training" and STAFFING_RE.search(sent):
+                continue
             pairs = quantities(sent)
             if kind == "Extended Warranty":
                 pairs = [p for p in pairs if p[1] == "YR"][:1]
@@ -1319,6 +1336,22 @@ def extract(pdf_path, ocr=None):
                     # obligation is real, the number of visits is not in the spec text
                     pairs, kind = [(None, "", "")], "Quantity Not Specified"
                 elif g_handover or g_instruct or g_submit:
+                    pairs, kind = [(None, "", "")], "Quantity Not Specified"
+                elif re.search(r"EXTRA MATERIAL|MAINTENANCE MATERIAL|SPARE PART|SPECIAL TOOL",
+                               it["heading"].upper()) and kind in ("Attic Stock", "Spare Part",
+                                                                   "Special Tool", "O&M Deliverable"):
+                    # these subsections exist only to list what the Owner is given. An item in one
+                    # of them is an obligation even when the spec states no number for it
+                    # ("A tool kit specially designed by chiller manufacturer ...").
+                    pairs, kind = [(None, "", "")], "Quantity Not Specified"
+                elif relevant and ITEM_LABEL.match(sent) and (
+                        kind in ("Attic Stock", "Spare Part", "Special Tool")
+                        or (kind == "O&M Deliverable"
+                            and (re.search(r"to include in[^.]{0,60}manuals?", sent, re.I)
+                                 or "CLOSEOUT" in it["heading"].upper()))):
+                    # a named physical item, or the standard closeout submittal phrasing
+                    # ("Operation and Maintenance Data: For each chiller to include in ... manuals").
+                    # A sentence that only lists what a manual must contain is not a deliverable.
                     pairs, kind = [(None, "", "")], "Quantity Not Specified"
                 elif kind == "Training" and not STAFFING_RE.search(sent) \
                         and re.search(r"\b(provide|furnish|perform|engage|schedule)\b", sent, re.I) \
