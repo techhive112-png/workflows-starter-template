@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reception Agent — Live Demo</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#14161a; --muted:#5b6471;
+    --line:#e5e8ec; --card:#f7f8fa; --accent:#1f6feb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0e1013; --fg:#eef1f5; --muted:#9aa4b2;
+      --line:#23272e; --card:#171a1f; --accent:#4c8dff;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1013; --fg:#eef1f5; --muted:#9aa4b2;
+    --line:#23272e; --card:#171a1f; --accent:#4c8dff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:720px; margin:0 auto; padding:56px 16px 80px}
+  .brand{
+    font-size:13px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:40px;
+  }
+  h1{font-size:clamp(28px,6vw,42px); line-height:1.15; letter-spacing:-.02em; margin:0 0 16px}
+  .lede{font-size:clamp(17px,2.6vw,19px); color:var(--muted); margin:0 0 36px; max-width:52ch}
+  .cta{
+    border:1px solid var(--line); background:var(--card);
+    border-radius:14px; padding:28px 24px; margin-bottom:44px;
+  }
+  .cta h2{font-size:17px; margin:0 0 6px}
+  .cta p{font-size:14px; color:var(--muted); margin:0 0 20px}
+  .hint{font-size:13px; color:var(--muted); margin-top:18px}
+  ul{list-style:none; padding:0; margin:0 0 44px}
+  li{padding:18px 0; border-top:1px solid var(--line)}
+  li:last-child{border-bottom:1px solid var(--line)}
+  li b{display:block; font-size:15px; margin-bottom:4px}
+  li span{font-size:14px; color:var(--muted)}
+  .note{
+    font-size:13px; color:var(--muted); border-left:2px solid var(--line);
+    padding:4px 0 4px 16px;
+  }
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">Voice Reception</div>
+
+    <h1>Your reception, answered.<br>Every call. Every hour.</h1>
+    <p class="lede">
+      A third of calls to a busy clinic go unanswered — after hours, at lunch, or
+      simply because two people rang at once. This agent picks them up and books
+      the consultation. Click below and talk to it.
+    </p>
+
+    <div class="cta">
+      <h2>Talk to the agent</h2>
+      <p>Ask it about treatments, prices, locations, or try to book an appointment.</p>
+      <div id="call-mount"></div>
+      <div class="hint">Your microphone is used only for this call. Nothing is stored.</div>
+    </div>
+
+    <ul>
+      <li>
+        <b>It books, it doesn't take messages.</b>
+        <span>Name, number, treatment and preferred location go straight into the calendar.</span>
+      </li>
+      <li>
+        <b>It knows what it must never say.</b>
+        <span>No medical advice, no final prices, no promises about results — every time, without exception.</span>
+      </li>
+      <li>
+        <b>It escalates what matters.</b>
+        <span>Pain, swelling or a complication after treatment stops the booking flow and alerts a practitioner immediately.</span>
+      </li>
+      <li>
+        <b>You see the money, not the metrics.</b>
+        <span>A monthly report: calls answered, consultations booked, revenue recovered.</span>
+      </li>
+    </ul>
+
+    <p class="note">
+      This is a demonstration page operated by Voice Reception. It is not affiliated
+      with, or operated by, any clinic referenced during the conversation.
+    </p>
+  </div>
+
+<script src="https://storage.googleapis.com/mychatbot-widget-assets/v2/calls.js"></script>
+<script>
+  MyChatBotCalls.mount({
+    agent_id: "agent_0201m4v38t9jf6f8wpf7ygp03tka",
+    name: "Reception",
+    target: "#call-mount",
+    transcript: "open"
+  });
+</script>
+</body>
+</html>
