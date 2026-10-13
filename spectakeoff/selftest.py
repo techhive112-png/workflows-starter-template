@@ -49,14 +49,20 @@ def _run(pdf, out):
     return p.stdout + p.stderr, time.time() - t0
 
 
-def _golden(md_path):
-    """The rows of section 7 of the .md, as (section, type, item, qty, unit, page, quote)."""
+BASELINE_RE = re.compile(r"^## \d+\.\s+(\S+)\s+regression baseline.*?$(.*?)(?=^## \d+\.|\Z)",
+                         re.S | re.M)
+
+
+def _golden(md_path, spec_name):
+    """The rows of the baseline section for this spec, as
+    (section, type, item, qty, unit, page, quote). None if the .md has no baseline for it."""
     md = open(md_path, encoding="utf-8").read()
-    m = re.search(r"^## 7\..*?$(.*?)^## 8\.", md, re.S | re.M)
+    stem = re.sub(r"\.pdf$", "", os.path.basename(spec_name), flags=re.I).lower()
+    m = next((x for x in BASELINE_RE.finditer(md) if x.group(1).lower() == stem), None)
     if not m:
         return None
     out = []
-    for line in m.group(1).splitlines():
+    for line in m.group(2).splitlines():
         if not line.startswith("| "):
             continue
         c = [x.strip().replace("\\|", "|") for x in line.strip().strip("|").split("|")]
@@ -127,9 +133,11 @@ def check(pdf, md_path=None):
 
     # 5 golden baseline
     if md_path:
-        want = _golden(md_path)
+        want = _golden(md_path, pdf)
         if want is None:
-            results.append(("5 golden baseline", FAIL, "section 7 of the .md has no table"))
+            results.append(("5 golden baseline", "SKIP",
+                            "the .md has no baseline section for this spec yet - create one with "
+                            "`package.py --baseline %s`" % os.path.basename(pdf)))
         else:
             # a markdown table cell cannot carry leading or trailing spaces, so both sides are stripped
             got = [tuple(x.strip() for x in (
@@ -138,12 +146,12 @@ def check(pdf, md_path=None):
                     str(r["Page"] or ""), str(r["Spec Language (verbatim)"] or ""))) for r in rows]
             want = [tuple(x.strip() for x in w) for w in want]
             if got == want:
-                results.append(("5 golden baseline", PASS, f"reproduces section 7 exactly ({len(want)} rows)"))
+                results.append(("5 golden baseline", PASS, f"reproduces its baseline in the .md exactly ({len(want)} rows)"))
             else:
-                d = [f"{len(want)} rows in section 7, {len(got)} in the run"]
+                d = [f"{len(want)} rows in the baseline, {len(got)} in the run"]
                 for i, (a, b) in enumerate(zip(want, got), 1):
                     if a != b:
-                        d.append(f"  row {i} differs: section 7 {a[:4]} / run {b[:4]}")
+                        d.append(f"  row {i} differs: baseline {a[:4]} / run {b[:4]}")
                 results.append(("5 golden baseline", FAIL, "\n".join(d[:12])))
 
     # 6 determinism

@@ -1007,6 +1007,14 @@ def build_items(lines):
     return items
 
 
+# units and short forms that end in a full stop inside a sentence. Splitting after one of these
+# truncated real requirements ("but not less than 1 gal. (3.8 L) of each material and color applied")
+ABBREV = r"(?<!\bgal)(?<!\bapprox)(?<!\bdeg)(?<!\bNo)(?<!\bNos)(?<!\bqty)(?<!\bmax)(?<!\bmin)" \
+         r"(?<!\boz)(?<!\blb)(?<!\blbs)(?<!\bsq)(?<!\bft)(?<!\bea)(?<!\bin)(?<!\bcu)(?<!\bdia)" \
+         r"(?<!\bNo)(?<!\bMfr)(?<!\bInc)(?<!\bCorp)(?<!\bCo)(?<!\bLtd)"
+SENTENCE_RE = re.compile(r".+?(?:" + ABBREV + r"[.;](?=\s+[A-Z(\[])|$)")
+
+
 def sentences(item):
     """Split an item into sentences, keeping the page each sentence starts on."""
     text = item["text"]
@@ -1015,7 +1023,7 @@ def sentences(item):
         offsets.append((pos, page))
         pos += len(t) + 1
     out = []
-    for m in re.finditer(r".+?(?:[.;](?=\s+[A-Z(\[])|$)", text):
+    for m in SENTENCE_RE.finditer(text):
         s = m.group(0).strip()
         if len(s) < 8:
             continue
@@ -1127,12 +1135,13 @@ def basis(sentence):
     return out
 
 
-SKIP_RE = re.compile(r"^\s*(See|Refer to) Section|\bdraft\b|preliminary|reviewed and returned|"
+SKIP_RE = re.compile(r"^\s*(?:See|Refer to)\s+(?:Division\s+[\d ]+)?Section|^\\s*This Section includes|includes administrative and procedural requirements|^\\s*Preparation: Submit|\bdraft\b|preliminary|reviewed and returned|"
                      r"Submit manufacturer'?s warranty and ensure forms|segments\b|take precedence|"
                      r"other guarantees required|longer than|\u00a7|User Notes|"
                      r"\bwaives? the right|\bfails to notify\b|\bclaim for breach\b|"
                      r"\bquote\b[^.]{0,80}\bwarrant|"
                      r"\bwill be subject to\b|\bcause for Owner to charge\b|\bBe prepared to\b|"
+                     r"\b(?:advance|days?'?)\s*(?:written\s+)?notice\b|"
                      r"\bif unable to\b|\bre-?schedule\b|\bshall be accomplished by\b|"
                      r"\brequire (?:material|product) (?:or product )?suppliers\b|"
                      r"\bmaintain\b[^.]{0,40}\b(?:cop(?:y|ies)|sets?|records?|documents?|prints?)\b"
@@ -1151,6 +1160,18 @@ INFRARED_RE = re.compile(r"(infrared|thermographic)\s+(scan|survey|inspection|te
 ATTIC_RE = re.compile(r"owner'?s use in maintenance|store where directed|acoustical|paint|gallon|wall plate|filters?\b", re.I)
 OM_RE = re.compile(r"operation and maintenance|operating and maintenance|O&M|as-built|record|manuals?|DVD|"
                    r"copies|prints|reports?|documents|warranties and bonds|training manual", re.I)
+# a submittal that belongs to contract administration, not to the Owner's closeout package
+ADMIN_SUBMITTAL = re.compile(r"request for (?:final |written )*inspection|written request|"
+                             r"Application for Payment|\binsurance\b|punch list|cop(?:y|ies) of list|"
+                             r"releases? permitting|list of items to be completed", re.I)
+# "Engage a qualified facilitator", "Provide a qualified person", "Engage qualified instructors":
+# these say WHO does the work, not what the Owner receives, and the real obligation is stated
+# separately. Counting them as rows double-counts the training.
+STAFFING_RE = re.compile(r"\b(?:qualified|experienced|factory-authorized|certified)\s+"
+                         r"(?:person|persons|personnel|staff|instructors?|facilitators?|"
+                         r"representatives?|technicians?|service \w+)\b|"
+                         r"\bEngage\s+(?:a\s+|an\s+)?(?:qualified\s+)?(?:facilitator|instructors?|"
+                         r"firm|entity)\b", re.I)
 QNS_RE = re.compile(r"\bsufficient\b|\bfinal copies\b|\ball (?:spare|extra)\b|\badditional copies\b", re.I)
 
 
@@ -1173,6 +1194,9 @@ def classify(sentence, heading):
         if ATTIC_RE.search(sentence) or re.search(r"EXTRA MATERIAL|MAINTENANCE MATERIAL", heading):
             return "Attic Stock"
     if OM_RE.search(sentence):
+        return "O&M Deliverable"
+    if re.search(r"RECORD DOCUMENT", heading) and \
+            re.search(r"\b(provide|furnish|submit|deliver)\b", sentence, re.I):
         return "O&M Deliverable"
     return None
 
@@ -1256,14 +1280,20 @@ def extract(pdf_path, ocr=None):
                               and re.search(r"\bOwner\b", sent, re.I))
             # the Owner's OWN people must be the ones being instructed - "as instructed by the
             # Owner" is the opposite direction and is not a training obligation
-            g_instruct = bool(re.search(r"\b(?:instruct|train)\w*\s+(?:the\s+)?Owner'?s?\s+"
+            sec_title = (titles.get(sec_of_page[page - 1], "") or "").upper()
+            g_submit = bool("CLOSEOUT" in sec_title
+                            and re.match(r"(?:Prepare and submit|Submit|Deliver|Turn over)\b", sent)
+                            and not ADMIN_SUBMITTAL.search(sent))
+            g_instruct = bool(not STAFFING_RE.search(sent)
+                              and re.search(r"\b(?:instruct|train)\w*\s+(?:the\s+)?Owner'?s?\s+"
                                         r"(?:own\s+|operating\s+|maintenance\s+)?"
-                                        r"(?:personnel|representatives?|staff|employees|operators?)\b",
-                                        sent, re.I))
+                                            r"(?:personnel|representatives?|staff|employees|operators?)\b",
+                                            sent, re.I))
             # Division 26: follow-up infrared scan of electrical gear before warranty ends
             g_ir = body_part and INFRARED_RE.search(sent) and re.search(r"months? after|before (?:the )?(?:end|expiration)|"
                                                                        r"warranty period|substantial completion", sent, re.I)
-            if not (relevant or g_warranty or g_om or g_tool or g_ir or g_handover or g_instruct):
+            if not (relevant or g_warranty or g_om or g_tool or g_ir or g_handover or g_instruct
+                    or g_submit):
                 continue
             kind = classify(sent, it["heading"])
             if not kind:
@@ -1288,9 +1318,12 @@ def extract(pdf_path, ocr=None):
                     # a recurring service whose frequency is stated but whose count is not: the
                     # obligation is real, the number of visits is not in the spec text
                     pairs, kind = [(None, "", "")], "Quantity Not Specified"
-                elif g_handover or g_instruct:
+                elif g_handover or g_instruct or g_submit:
                     pairs, kind = [(None, "", "")], "Quantity Not Specified"
-                elif kind == "Training" and re.search(r"\b(provide|furnish|perform|engage|schedule)\b", sent, re.I) \
+                elif kind == "Training" and not STAFFING_RE.search(sent) \
+                        and re.search(r"\b(provide|furnish|perform|engage|schedule)\b", sent, re.I) \
+                        and re.search(r"\b(?:provide|furnish|perform)\s+(?:\w+\s+){0,3}"
+                                      r"(?:training|instruction|demonstration)", sent, re.I) \
                         and re.search(r"\bOwner'?s?\b|\battendees?\b|\bparticipants?\b|\bpersonnel\b|"
                                       r"\beach season\b", sent, re.I):
                     # training owed to the Owner's personnel with no hours stated: the obligation is
