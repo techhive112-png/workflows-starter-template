@@ -1186,8 +1186,8 @@ def item_name(sentence, noun, multi):
     s = re.sub(r"^(Provide|Furnish|Supply|Submit|Include|Obtain|Correct)\s+(?:a |an |the |minimum of |minimum )?", "", sentence)
     s = s.rstrip(".;")
     if multi:
-        return f"{noun} - {s[:90]}"
-    return s[:110]
+        return f"{noun} - {s[:90]}".rstrip()
+    return s[:110].rstrip()
 
 
 # ---------------------------------------------------------------------------

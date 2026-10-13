@@ -13,15 +13,30 @@ Everything needed is in this folder. The container that produced it is gone; the
 |---|---|
 | `SPECTAKEOFF_ALL_IN_ONE.md` | The single source of truth. Code embedded in section 8, ECISD result + open decisions in section 9. |
 | `spectakeoff.py` | The code, 1524 lines, md5 `0943655ad0`. Identical to what is embedded in the .md. |
-| `verify_rccd.py` | Matches a run's output against the 67 hand-verified RCCD rows in section 7. |
+| `selftest.py` | The quality gate. 7 checks, exit 0 only if all pass. Run after EVERY change. |
+| `package.py` | The only thing that may update the .md. Re-embeds all scripts, fixes the md5 and the manifest, refuses to leave the file inconsistent. |
+| `batch.py` | Several specs at once, one `Batch_Summary.xlsx`. This is the tool for open task 5.2. |
+| `verify_rccd.py` | Superseded by `selftest.py`; kept because it checks against the ORIGINAL hand-typed 67 rows. |
 | `RCCD_Closeout_Schedule.xlsx` | Current RCCD output, 75 rows. |
 | `ECISD_Closeout_Schedule.xlsx` | Current ECISD output, 25 rows. |
 
+## The workflow now has a gate
+
+    python selftest.py spec.pdf -m SPECTAKEOFF_ALL_IN_ONE.md   # after every change
+    python package.py --baseline spec.pdf                      # then re-package
+    python package.py --check                                  # is the .md stale?
+    python batch.py *.pdf                                      # several specs at once
+
+`package.py` will not write a baseline from a run that failed `selftest.py`, so section 7 can never
+record rows the gate rejects. It also re-reads what it wrote and exits non-zero rather than leave an
+inconsistent file behind. Never hand-edit the md5 or the embedded code again.
+
 ## The Colab one-liner now verifies
 
-Section 6's command prints `True` again — the md5 literal was updated to `0943655ad0` and the
-code in section 8 was re-embedded. Do not edit `spectakeoff.py` without re-embedding it and
-recomputing that md5, or the owner's command prints `False`.
+One line extracts all four scripts and prints `True` only if every one matches the manifest in
+section 10. Tested from a clean folder: it prints `True`, and the extracted copy passes all seven
+self-test checks including the golden baseline. Run `package.py` after any code change and it stays
+that way.
 
 ## State
 
