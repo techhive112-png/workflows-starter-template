@@ -798,7 +798,9 @@ def _read_range(args):
             body = sizes[len(sizes) // 2] if sizes else 10
             limit = max(body * 2.5, 20)
             clean = page.filter(lambda o: o.get("object_type") != "char" or o["size"] <= limit)
-            text = clean.extract_text() or ""
+            # the default x_tolerance of 3 pt silently drops a real word space in these fonts
+            # (a space glyph measures ~2.8 pt), which broke the word-for-word promise in R2
+            text = clean.extract_text(x_tolerance=2) or ""
             if not text.strip() and page.images:
                 text = "\x00SCANNED"          # image-only page: needs OCR, never guessed
             out.append(text)
@@ -1101,15 +1103,28 @@ def quantities(sentence):
         m = re.search(r"\b(duplicate|triplicate)\b", s, re.I)
         if m:
             pairs.append((2 if m.group(1).lower() == "duplicate" else 3, "EA", "copies"))
-    if not pairs and re.search(r"\b(bi-?monthly|monthly|quarterly|weekly)\b", s, re.I):
-        pairs.append((1, "EA", re.search(r"\b(bi-?monthly|monthly|quarterly|weekly)\b", s, re.I).group(1)))
+    # A frequency ("monthly", "quarterly") states HOW OFTEN, never how many. The count is the
+    # frequency times the service period, and the period is stated in a different sentence - so
+    # the count is not readable from this quote and no number may be put in Qty (R4).
     return pairs
+
+
+# how often a recurring service happens, and the gap between visits: both are stated as text and
+# neither is a quantity. They are recorded in Basis so the estimator can work the count out.
+FREQ_BASIS = re.compile(r"\b(bi-?monthly|monthly|quarterly|semiannual(?:ly)?|semi-annual(?:ly)?|weekly|"
+                        r"annual(?:ly)?|every \d+ months?|\w+[- ]month interval|"
+                        r"\d+ (?:complete |normal |routine )*inspections? per year)\b", re.I)
 
 
 def basis(sentence):
     m = re.search(r"\b((?:for|of) (?:each|every)\b[^,.;]*|per [^,.;]*|from (?:the )?Date of Substantial Completion|"
                   r"after Acceptance by the Owner|minimum)", sentence, re.I)
-    return m.group(1).strip() if m else ""
+    out = m.group(1).strip() if m else ""
+    f = FREQ_BASIS.search(sentence)
+    if f:
+        note = f"{f.group(1)} - count not stated in this sentence, estimator must compute it"
+        out = f"{out}; {note}" if out else note
+    return out
 
 
 SKIP_RE = re.compile(r"^\s*(See|Refer to) Section|\bdraft\b|preliminary|reviewed and returned|"
@@ -1117,6 +1132,9 @@ SKIP_RE = re.compile(r"^\s*(See|Refer to) Section|\bdraft\b|preliminary|reviewed
                      r"other guarantees required|longer than|\u00a7|User Notes|"
                      r"\bwaives? the right|\bfails to notify\b|\bclaim for breach\b|"
                      r"\bquote\b[^.]{0,80}\bwarrant|"
+                     r"\bwill be subject to\b|\bcause for Owner to charge\b|\bBe prepared to\b|"
+                     r"\bif unable to\b|\bre-?schedule\b|\bshall be accomplished by\b|"
+                     r"\brequire (?:material|product) (?:or product )?suppliers\b|"
                      r"\bmaintain\b[^.]{0,40}\b(?:cop(?:y|ies)|sets?|records?|documents?|prints?)\b"
                      r"[^.]{0,40}\bduring (?:the )?construction period\b", re.I)
 WARRANTY_RE = re.compile(r"warrant|guarant", re.I)
@@ -1209,7 +1227,12 @@ def extract(pdf_path, ocr=None):
                            r"record (?:prints|specifications|product data|documents)|instruction(?:al)? program|"
                            r"\bmanuals?\b|DVD|training manual", re.I)
     VERB = re.compile(r"\b(provide|furnish|supply|submit|attach|deliver|turn over)\b", re.I)
+    TEMPORARY = re.compile(r"\bTEMPORARY\b")
     for it in items:
+        # Temporary Facilities and Controls is removed at the end of the job; nothing in it is
+        # handed over to the Owner, so its keys and materials are not closeout items
+        if TEMPORARY.search((titles.get(sec_of_page[it["page"] - 1], "") or "").upper()):
+            continue
         relevant = (bool(RELEVANT_HEADING.search(it["heading"])) or bool(RELEVANT_LABEL.match(it["text"]))
                     or bool(RELEVANT_LABEL.match(it["parent"])))
         sents = sentences(it)
@@ -1260,6 +1283,10 @@ def extract(pdf_path, ocr=None):
                         and re.search(r"\b(provide|furnish|supply|submit|attach|deliver|turn over)\b", sent, re.I):
                     pairs = [(1, "EA", "")]
                 elif QNS_RE.search(sent) or re.search(r"final copies", sent, re.I) or INFRARED_RE.search(sent):
+                    pairs, kind = [(None, "", "")], "Quantity Not Specified"
+                elif kind == "Maintenance Service" and FREQ_BASIS.search(sent):
+                    # a recurring service whose frequency is stated but whose count is not: the
+                    # obligation is real, the number of visits is not in the spec text
                     pairs, kind = [(None, "", "")], "Quantity Not Specified"
                 elif g_handover or g_instruct:
                     pairs, kind = [(None, "", "")], "Quantity Not Specified"

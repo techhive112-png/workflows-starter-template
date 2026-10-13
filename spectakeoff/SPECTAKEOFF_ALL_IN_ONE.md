@@ -59,7 +59,7 @@ One self-contained Python file, `spectakeoff.py` (full code in section 8). It:
   Summary, Labor, Checks, coverage sheet (Div 23-26 / Div 15-16 / HVAC-Electrical, named after the
   numbering system the document uses), Rules (R1–R16).
 
-Results on RCCD (509 pages): **78 verified rows** in ~17 s (4 cores) — all 67 hand-verified
+Results on RCCD (509 pages): **75 verified rows** in ~17 s (4 cores) — all 67 hand-verified
 obligations plus real ones the hand review missed (p.355 4 inspections × ~4 h; p.400
 1-year water treatment service). It also flags a spec conflict (p.398 monthly vs p.400 bi-monthly
 visits) and a spec omission (26 28 18 Enclosed Switches: "furnish the following" maintenance
@@ -77,9 +77,9 @@ type/size from schedule). All 48 fake Gemini rows are rejected by agents 1+2.
 6. Everything delivered is English; spec quotes are never translated.
 
 **Regression test** (RCCD spec): run must end with `DONE`, `[agent 4 Delivery] file re-opened and
-verified`, `[agent 7 Language] file is entirely English`; must contain all 67 obligations of
-section 7 (59 match exactly; 8 differ in Type/Unit or in how much of the sentence is quoted - see
-section 9). There is no required row count; Checks sheet must show the R10 CONFLICT p.398 vs p.400; Div 23-26 Coverage must flag 26 28 18.
+verified`, `[agent 7 Language] file is entirely English`; must reproduce section 7 exactly (75 rows,
+all 67 hand-verified obligations present), with zero R4 violations and zero quotes that are not word
+for word on their cited page; Checks sheet must show the R10 CONFLICT p.398 vs p.400; Div 23-26 Coverage must flag 26 28 18.
 
 ## 5. Open tasks (continue here)
 
@@ -100,84 +100,102 @@ section 9). There is no required row count; Checks sheet must show the R10 CONFL
    (single line, safe to paste on a phone):
 
 ```
-d=open('/content/SPECTAKEOFF_ALL_IN_ONE.md',encoding='utf-8').read(); s=d.index('# BEGIN spectakeoff.py\n')+len('# BEGIN spectakeoff.py\n'); c=d[s:d.index('# END spectakeoff.py',s)]; open('/content/spectakeoff.py','w',encoding='utf-8').write(c); import hashlib; print(len(c.splitlines()),'lines', hashlib.md5(c.encode()).hexdigest()[:10]=='8363f6918c')
+d=open('/content/SPECTAKEOFF_ALL_IN_ONE.md',encoding='utf-8').read(); s=d.index('# BEGIN spectakeoff.py\n')+len('# BEGIN spectakeoff.py\n'); c=d[s:d.index('# END spectakeoff.py',s)]; open('/content/spectakeoff.py','w',encoding='utf-8').write(c); import hashlib; print(len(c.splitlines()),'lines', hashlib.md5(c.encode()).hexdigest()[:10]=='0943655ad0')
 ```
    It must print `True`. Then upload the spec PDF and run one cell: `!python /content/spectakeoff.py`
    Result: `<pdf name>_Closeout_Schedule.xlsx` in the Colab folder.
 2. On a computer: save section 8 as `spectakeoff.py`, then `python spectakeoff.py spec.pdf`.
 
-## 7. Hand-verified reference: the 67 RCCD rows (regression baseline)
+## 7. RCCD regression baseline - 75 rows (generated from a verified run)
+
+This table **replaces the hand-typed 67-row table**. It is the output of a run, not retyped, and it
+was checked three ways: every one of the 67 hand-verified obligations is present (67/67), every Qty
+is a number that appears in its own quote (0 violations of R4), and every quote appears word for
+word in the raw text of its cited page (0 failures). If a run does not reproduce this table exactly,
+something has changed and must be explained before the file is delivered.
+
+Where the old hand-typed table differed, the code is right and the table was wrong: it inferred
+`1 EA` for the seasonal demonstration and for the monthly service visits (neither sentence contains
+a number), `2 SET` where the spec says "two (2) bound hardcopies" (a copy, not a set), and `2 EA`
+where the spec says "for 2 day period". Those inferences are exactly what R4 forbids.
 
 | # | Section | Type | Item | Qty | Unit | Page | Spec Language (verbatim) |
 |---|---|---|---|---|---|---|---|
-| 1 | 00 73 13 | Extended Warranty | Contractor guarantee of all materials and workmanship against original defects | 2 | YR | 110 | The Contractor will guarantee all materials and workmanship against original defects, except injury from proper and usual wear when used for the purpose intended, for two years after Acceptance by the Owner, and will maintain all items in perfect condition during the period of guarantee. |
-| 2 | 00 73 13 | O&M Deliverable | Complete set of as-built drawings attached to Operating and Maintenance Instructions/Manuals | 1 | SET | 111 | In addition, attach one complete set to each of the Operating and Maintenance Instructions/Manuals. |
-| 3 | 00 73 13 | O&M Deliverable | Prints of the as-built conditions | 2 | EA | 111 | The Contractor shall provide two (2) prints of the as-built conditions, along with the reproducible drawings themselves, to the Owner and one (1) set to the Architect. |
-| 4 | 00 73 13 | O&M Deliverable | Set of prints of the as-built conditions | 1 | SET | 111 | The Contractor shall provide two (2) prints of the as-built conditions, along with the reproducible drawings themselves, to the Owner and one (1) set to the Architect. |
-| 5 | 00 81 13 | Extended Warranty | Warranty bond (Performance and Payment Bonds maintained in full force) | 2 | YR | 132 | Performance and Payment Bonds shall be maintained in full force (warranty bond) for a period of two (2) years after the date of the Certificate for Final Payment. |
-| 6 | 00 81 13 | Extended Warranty | Contractor warranty that work conforms to contract requirements and is free of defects | 2 | YR | 142 | For a period of two (2) years from the date of substantial completion, as evidenced by the date of final acceptance of the work, the contractor warrants that work performed under this contract conforms to the contract requirements and is free of any defect of equipment, material or workmanship performed by the contractor or any of his subcontractors or suppliers. |
-| 7 | 01 70 00 | Training | Demonstration and training | 8 | HR | 244 | Provide 8 hours minimum of demonstration and training. |
-| 8 | 01 70 00 | Training | Demonstration for other season (seasonal equipment) | 1 | EA | 244 | For equipment or systems requiring seasonal operation, perform demonstration for other season within six months. |
-| 9 | 01 70 00 | O&M Deliverable | Archival-grade (gold foil) DVDs containing O&M manuals, as-built drawings, and inspection certificates | 2 | EA | 245 | Provide operation and maintenance manuals for all installed equipment and devices, as-built drawings (PDF), and all inspection certificates as two (2) bound hardcopies and two (2) archival-grade (gold foil) DVDs. |
-| 10 | 01 70 00 | O&M Deliverable | Operation and maintenance manuals, as-built drawings (PDF), and inspection certificates (bound hardcopies) | 2 | SET | 245 | Provide operation and maintenance manuals for all installed equipment and devices, as-built drawings (PDF), and all inspection certificates as two (2) bound hardcopies and two (2) archival-grade (gold foil) DVDs. |
-| 11 | 01 70 00 | Maintenance Service | Default maintenance period where not indicated in specification sections | 1 | YR | 245 | Maintenance Period: As indicated in specification sections or, if not indicated, not less than one year from the Date of Substantial Completion or the length of the specified warranty, whichever is longer. |
-| 12 | 01 78 00 | O&M Deliverable | DVDs with All Project Record Submittals (Gold-Foil, Archival Grade DVDs) | 2 | EA | 253 | Two DVDs with All Project Record Submittals (Gold-Foil, Archival Grade DVDs) |
-| 13 | 01 78 00 | O&M Deliverable | Revised final operation and maintenance documents | 2 | SET | 253 | Submit two sets of revised final documents in final form within 10 days after final inspection. |
-| 14 | 01 78 00 | O&M Deliverable | Warranties and bonds executed by Subcontractors, suppliers, and manufacturers | 2 | EA | 255 | Obtain warranties and bonds, executed in duplicate by responsible Subcontractors, suppliers, and manufacturers, within 10 days after completion of the applicable item of work. |
-| 15 | 01 79 00 | O&M Deliverable | Extra copy of each training manual to be included with operation and maintenance data | 1 | EA | 257 | Provide one extra copy of each training manual to be included with operation and maintenance data. |
-| 16 | 01 79 00 | O&M Deliverable | Training manual | 1 | EA | 257 | Training Manuals: Provide training manual for each attendee; allow for minimum of two attendees per training session. |
-| 17 | 01 79 00 | Training | Owner personnel training | 8 | HR | 258 | Provide minimum 8 hours of training. |
-| 18 | 01 79 00 | Training | Demonstration for other season (seasonal equipment) | 1 | EA | 258 | For equipment or systems requiring seasonal operation, perform demonstration for other season within six months. |
-| 19 | 03 30 00 | Extended Warranty | Warranty for flooring failures due to moisture migration from slabs with MVRA | 10 | YR | 272 | Slabs with Moisture Vapor Reducing Admixture (MVRA): Provide warranty to cover the cost of flooring failures due to moisture migration from slabs for ten years. |
-| 20 | 03 30 00 | Extended Warranty | Warranty for flooring delamination failures (moisture emission reducing curing and sealing compound) | 10 | YR | 272 | Moisture Emission Reducing Curing and Sealing Compound: Provide warranty to cost of flooring delamination failures for 10 years. |
-| 21 | 09 51 00 | Attic Stock | Type A1 acoustical unit | 100 | SF | 292 | Provide 100 SF of Type A1 acoustical unit, for Owner's use in maintenance of project. |
-| 22 | 09 51 00 | Attic Stock | Type A2 acoustical unit | 1 | BOX | 292 | Provide 1 box of Type A2 acoustical unit, for Owner's use in maintenance of project. |
-| 23 | 09 90 00 | Attic Stock | Paint | 1 | GAL | 296 | Supply 1 gallon of each color; store where directed. |
-| 24 | 23 05 13 | Extended Warranty | Manufacturer warranty for motors larger than 20 horsepower | 5 | YR | 301 | Provide five year manufacturer warranty for motors larger than 20 horsepower. |
-| 25 | 23 05 16 | Spare Part | packing | 2 | SET | 309 | Supply two sets of packing for each packed expansion joint. |
-| 26 | 23 05 93 | Quantity Not Specified | Final TAB report copies for Architect and for inclusion in O&M manuals |  |  | 326 | Submit draft copies of report for review prior to final acceptance of Project. Provide final copies for Architect and for inclusion in operating and maintenance manuals. |
-| 27 | 23 09 13 | Maintenance Service | Service and maintenance of control system | 2 | YR | 352 | Provide service and maintenance of control system for two years from Date of Substantial Completion. |
-| 28 | 23 09 23 | Extended Warranty | Correction of defective Work warranty period | 5 | YR | 354 | Correct defective Work within a five year period after Substantial Completion. |
-| 29 | 23 09 23 | Extended Warranty | Manufacturer's warranty for field programmable micro-processor based units | 5 | YR | 354 | Provide five year manufacturer's warranty for field programmable micro-processor based units. |
-| 30 | 23 09 23 | Maintenance Service | Service and maintenance of energy management and control systems | 1 | YR | 354 | Provide service and maintenance of energy management and control systems for one years from Date of Substantial Completion. |
-| 31 | 23 09 23 | Maintenance Service | Complete inspections to inspect, calibrate, and adjust controls, with written reports | 4 | EA | 354 | Provide four complete inspections per year, two in each season, to inspect, calibrate, and adjust controls as required, and submit written reports. |
-| 32 | 23 09 23 | Training | Instruction in operation of systems plant and equipment | 2 | EA | 372 | Provide service engineer to instruct Owner's representative in operation of systems plant and equipment for 2 day period. |
-| 33 | 23 09 23 | Training | Basic operator training | 8 | HR | 373 | Provide basic operator training for 4 persons on data display, alarm and status descriptors, requesting data, execution of commands and request of logs. Include a minimum of 8 hours dedicated instructor time. Provide training on site. |
-| 34 | 23 21 13 | Special Tool | Plug valve wrench | 1 | EA | 385 | Operator: One plug valve wrench for every ten plug valves minimum of one. |
-| 35 | 23 21 23 | Spare Part | Extra Pump Seals | 1 | SET | 393 | Extra Pump Seals: One set for each type and size of pump. |
-| 36 | 23 25 00 | Training | Training course for operating personnel | 2 | HR | 398 | Include 2 hour training course for operating personnel, instructing them on installation, care, maintenance, testing, and operation of water treatment systems. |
-| 37 | 23 25 00 | Quantity Not Specified | Chemicals for treatment and testing during warranty period |  |  | 398 | Supply sufficient chemicals for treatment and testing during warranty period. |
-| 38 | 23 25 00 | Maintenance Service | Service and maintenance of treatment systems | 1 | YR | 398 | Furnish service and maintenance of treatment systems for one year from Date of Substantial Completion. |
-| 39 | 23 25 00 | Maintenance Service | Technical service visits with field inspections and on-site water analysis | 1 | EA | 398 | Provide monthly technical service visits to perform field inspections and make water analysis on site. |
-| 40 | 23 25 00 | O&M Deliverable | Field service report | 2 | EA | 398 | Submit two copies of field service report after each visit. |
-| 41 | 23 25 00 | Training | Instruction on chemical treatment system | 2 | HR | 399 | Provide minimum of two hours of instruction for two people. |
-| 42 | 23 25 00 | Maintenance Service | Technical service visits with field inspections and on-site water analysis | 1 | EA | 400 | Provide bi-monthly (every 2 months) technical service visits for the first 6 months to perform field inspections and make water analysis on site. |
-| 43 | 23 64 23 | Spare Part | Extra Lubricating Oil | 1 | EA | 414 | Extra Lubricating Oil: One container. |
-| 44 | 23 64 23 | Spare Part | Extra Refrigerant | 1 | EA | 414 | Extra Refrigerant: One container. |
-| 45 | 23 64 23 | Extended Warranty | Manufacturer's Warranty: materials and labor for compressor | 5 | YR | 414 | Manufacturer's Warranty: Provide minimum Five year warranty to include coverage for materials and labor for compressor. |
-| 46 | 23 64 23 | Training | Training on operation and maintenance of system | 2 | HR | 418 | Provide minimum of two hours of training. |
-| 47 | 23 64 23 | Maintenance Service | Separate maintenance contract for service and maintenance of chiller | 2 | YR | 418 | Provide a separate maintenance contract for the service and maintenance of chiller for 2 years from Date of Substantial Completion. |
-| 48 | 23 64 26 | Spare Part | Extra Lubricating Oil | 1 | EA | 420 | Extra Lubricating Oil: One container. |
-| 49 | 23 64 26 | Spare Part | Extra Refrigerant | 1 | EA | 420 | Extra Refrigerant: One container. |
-| 50 | 23 64 26 | Extended Warranty | Manufacturer's Warranty: materials only for compressor | 5 | YR | 420 | Provide minimum five year warranty to include coverage for materials only for compressor. |
-| 51 | 23 64 26 | Extended Warranty | Manufacturer's Warranty: parts and labor warranty for entire system | 2 | YR | 420 | Manufacturer's Warranty: 2 year parts and labor warranty for entire system. |
-| 52 | 23 64 26 | Training | Training on operation and maintenance of system | 2 | HR | 424 | Provide minimum of two hours of training. |
-| 53 | 23 64 26 | Maintenance Service | Separate maintenance contract for service and maintenance of chiller | 2 | YR | 424 | Provide a separate maintenance contract for the service and maintenance of chiller for 2 years from Date of Substantial Completion. |
-| 54 | 23 73 13 | Spare Part | Extra Fan Belts | 1 | SET | 426 | Extra Fan Belts: One set for each unit. |
-| 55 | 23 73 13 | Spare Part | Extra Filters | 1 | SET | 426 | Extra Filters: One set for each unit. |
-| 56 | 23 73 13 | Extended Warranty | Manufacturer parts and labor warranty covering repair or replacement due to defective materials or workmanship | 2 | YR | 426 | Provide minimum two year manufacturer parts and labor warranty covering repair or replacement due to defective materials or workmanship. |
-| 57 | 23 73 13 | Training | Training on operation and maintenance of system | 1 | DAY | 432 | Provide minimum of one day of training. |
-| 58 | 23 73 13 | Maintenance Service | Service and maintenance of packaged roof top units | 2 | YR | 432 | Provide service and maintenance of packaged roof top units for [2] years from Date of Substantial Completion. |
-| 59 | 23 73 13 | Maintenance Service | Routine maintenance service calls | 3 | MO | 432 | Provide routine maintenance service with a three month interval as maximum time period between calls. |
-| 60 | 23 73 13 | Maintenance Service | Filter replacements during maintenance period | 4 | EA | 433 | Include maintenance items as outlined in manufacturer's operating and maintenance data, including minimum of four (4) filter replacements, minimum of one fan belt replacement, and controls check-out, adjustments, and recalibration. |
-| 61 | 23 73 13 | Maintenance Service | Fan belt replacement during maintenance period | 1 | EA | 433 | Include maintenance items as outlined in manufacturer's operating and maintenance data, including minimum of four (4) filter replacements, minimum of one fan belt replacement, and controls check-out, adjustments, and recalibration. |
-| 62 | 23 81 01 | Attic Stock | Filters | 1 | SET | 435 | Provide one (1) set of filters, with a final change immediately prior to occupancy. |
-| 63 | 23 81 01 | Extended Warranty | Manufacturers warranty for all motors | 5 | YR | 435 | Provide five year manufacturers warranty for all motors. |
-| 64 | 23 81 01 | Extended Warranty | Parts and labor warranty for entire unit | 1 | YR | 435 | Provide one year parts and labor warranty for enitre unit, from substitute and completion. |
-| 65 | 26 27 26 | Attic Stock | wall plate | 2 | EA | 479 | Furnish two of each style, size, and finish wall plate. |
-| 66 | 26 28 13 | Spare Part | fuse of each size and type installed | 3 | EA | 483 | Furnish three of each size and type fuse installed. |
-| 67 | 26 28 13 | Special Tool | fuse pullers | 2 | EA | 483 | Furnish two fuse pullers. |
-
+| 1 | 00 73 13 | Extended Warranty | The Contractor will guarantee all materials and workmanship against original defects, except injury from prope | 2 | YR | 110 | The Contractor will guarantee all materials and workmanship against original defects, except injury from proper and usual wear when used for the purpose intended, for two years after Acceptance by the Owner, and will maintain all items in perfect condition during the period of guarantee. |
+| 2 | 00 73 13 | O&M Deliverable | prints - The Contractor shall provide two (2) prints of the as-built conditions, along with the rep | 2 | EA | 111 | The Contractor shall provide two (2) prints of the as-built conditions, along with the reproducible drawings themselves, to the Owner and one (1) set to the Architect. |
+| 3 | 00 73 13 | O&M Deliverable | set - The Contractor shall provide two (2) prints of the as-built conditions, along with the rep | 1 | SET | 111 | The Contractor shall provide two (2) prints of the as-built conditions, along with the reproducible drawings themselves, to the Owner and one (1) set to the Architect. |
+| 4 | 00 73 13 | O&M Deliverable | In addition, attach one complete set to each of the Operating and Maintenance Instructions/Manuals | 1 | SET | 111 | In addition, attach one complete set to each of the Operating and Maintenance Instructions/Manuals. |
+| 5 | 00 81 13 | Extended Warranty | Performance and Payment Bonds shall be maintained in full force (warranty bond) for a period of two (2) years | 2 | YR | 132 | Performance and Payment Bonds shall be maintained in full force (warranty bond) for a period of two (2) years after the date of the Certificate for Final Payment. |
+| 6 | 00 81 13 | Extended Warranty | For a period of two (2) years from the date of substantial completion, as evidenced by the date of final accep | 2 | YR | 142 | For a period of two (2) years from the date of substantial completion, as evidenced by the date of final acceptance of the work, the contractor warrants that work performed under this contract conforms to the contract requirements and is free of any defect of equipment, material or workmanship performed by the contractor or any of his subcontractors or suppliers. |
+| 7 | 01 70 00 | Quantity Not Specified | For equipment or systems requiring seasonal operation, perform demonstration for other season within six month |  |  | 244 | For equipment or systems requiring seasonal operation, perform demonstration for other season within six months. |
+| 8 | 01 70 00 | Quantity Not Specified | qualified person who is knowledgeable about the Project to perform demonstration and instruction of Owner's pe |  |  | 244 | Provide a qualified person who is knowledgeable about the Project to perform demonstration and instruction of Owner's personnel. |
+| 9 | 01 70 00 | Training | 8 hours minimum of demonstration and training | 8 | HR | 244 | Provide 8 hours minimum of demonstration and training. |
+| 10 | 01 70 00 | O&M Deliverable | bound hardcopies - operation and maintenance manuals for all installed equipment and devices, as-built drawin | 2 | EA | 245 | Provide operation and maintenance manuals for all installed equipment and devices, as-built drawings (PDF), and all inspection certificates as two (2) bound hardcopies and two (2) archival-grade (gold foil) DVDs. |
+| 11 | 01 70 00 | O&M Deliverable | archival-grade (gold foil) DVDs - operation and maintenance manuals for all installed equipment and devices, as-built drawin | 2 | EA | 245 | Provide operation and maintenance manuals for all installed equipment and devices, as-built drawings (PDF), and all inspection certificates as two (2) bound hardcopies and two (2) archival-grade (gold foil) DVDs. |
+| 12 | 01 70 00 | Maintenance Service | Maintenance Period | 1 | YR | 245 | Maintenance Period: As indicated in specification sections or, if not indicated, not less than one year from the Date of Substantial Completion or the length of the specified warranty, whichever is longer. |
+| 13 | 01 78 00 | O&M Deliverable | two sets of revised final documents in final form within 10 days after final inspection | 2 | SET | 253 | Submit two sets of revised final documents in final form within 10 days after final inspection. |
+| 14 | 01 78 00 | O&M Deliverable | Two DVDs with All Project Record Submittals (Gold-Foil, Archival Grade DVDs) | 2 | EA | 253 | Two DVDs with All Project Record Submittals (Gold-Foil, Archival Grade DVDs) |
+| 15 | 01 78 00 | O&M Deliverable | Maintain on site one set of the following record documents; record actual revisions to the Work: | 1 | SET | 254 | Maintain on site one set of the following record documents; record actual revisions to the Work: |
+| 16 | 01 78 00 | O&M Deliverable | warranties and bonds, executed in duplicate by responsible Subcontractors, suppliers, and manufacturers, withi | 2 | EA | 255 | Obtain warranties and bonds, executed in duplicate by responsible Subcontractors, suppliers, and manufacturers, within 10 days after completion of the applicable item of work. |
+| 17 | 01 79 00 | O&M Deliverable | Training Manuals | 1 | EA | 257 | Training Manuals: Provide training manual for each attendee; allow for minimum of two attendees per training session. |
+| 18 | 01 79 00 | O&M Deliverable | one extra copy of each training manual to be included with operation and maintenance data | 1 | EA | 257 | Provide one extra copy of each training manual to be included with operation and maintenance data. |
+| 19 | 01 79 00 | Quantity Not Specified | For equipment or systems requiring seasonal operation, perform demonstration for other season within six month |  |  | 258 | For equipment or systems requiring seasonal operation, perform demonstration for other season within six months. |
+| 20 | 01 79 00 | Training | 8 hours of training | 8 | HR | 258 | Provide minimum 8 hours of training. |
+| 21 | 03 30 00 | Extended Warranty | Slabs with Moisture Vapor Reducing Admixture (MVRA) | 10 | YR | 272 | Slabs with Moisture Vapor Reducing Admixture (MVRA): Provide warranty to cover the cost of flooring failures due to moisture migration from slabs for ten years. |
+| 22 | 03 30 00 | Extended Warranty | Moisture Emission Reducing Curing and Sealing Compound | 10 | YR | 272 | Moisture Emission Reducing Curing and Sealing Compound: Provide warranty to cost of flooring delamination failures for 10 years. |
+| 23 | 09 51 00 | Attic Stock | 100 SF of Type A1 acoustical unit, for Owner's use in maintenance of project | 100 | SF | 292 | Provide 100 SF of Type A1 acoustical unit, for Owner's use in maintenance of project. |
+| 24 | 09 51 00 | Attic Stock | 1 box of Type A2 acoustical unit, for Owner's use in maintenance of project | 1 | BOX | 292 | Provide 1 box of Type A2 acoustical unit, for Owner's use in maintenance of project. |
+| 25 | 09 90 00 | Attic Stock | 1 gallon of each color; store where directed | 1 | GAL | 296 | Supply 1 gallon of each color; store where directed. |
+| 26 | 23 05 13 | Extended Warranty | five year manufacturer warranty for motors larger than 20 horsepower | 5 | YR | 301 | Provide five year manufacturer warranty for motors larger than 20 horsepower. |
+| 27 | 23 05 16 | Spare Part | two sets of packing for each packed expansion joint | 2 | SET | 309 | Supply two sets of packing for each packed expansion joint. |
+| 28 | 23 05 93 | Quantity Not Specified | final copies for Architect and for inclusion in operating and maintenance manuals |  |  | 326 | Provide final copies for Architect and for inclusion in operating and maintenance manuals. |
+| 29 | 23 09 13 | Maintenance Service | service and maintenance of control system for two years from Date of Substantial Completion | 2 | YR | 352 | Provide service and maintenance of control system for two years from Date of Substantial Completion. |
+| 30 | 23 09 23 | Extended Warranty | defective Work within a five year period after Substantial Completion | 5 | YR | 354 | Correct defective Work within a five year period after Substantial Completion. |
+| 31 | 23 09 23 | Extended Warranty | five year manufacturer's warranty for field programmable micro-processor based units | 5 | YR | 354 | Provide five year manufacturer's warranty for field programmable micro-processor based units. |
+| 32 | 23 09 23 | Maintenance Service | service and maintenance of energy management and control systems for one years from Date of Substantial Comple | 1 | YR | 354 | Provide service and maintenance of energy management and control systems for one years from Date of Substantial Completion. |
+| 33 | 23 09 23 | Maintenance Service | four complete inspections per year, two in each season, to inspect, calibrate, and adjust controls as required | 4 | EA | 354 | Provide four complete inspections per year, two in each season, to inspect, calibrate, and adjust controls as required, and submit written reports. |
+| 34 | 23 09 23 | Maintenance Service | Make minimum of 4 complete normal inspections of approximately 4 hours duration in addition to normal service | 4 | EA | 355 | Make minimum of 4 complete normal inspections of approximately 4 hours duration in addition to normal service calls to inspect, calibrate, and adjust controls, and submit written reports. |
+| 35 | 23 09 23 | Training | service engineer to instruct Owner's representative in operation of systems plant and equipment for 2 day peri | 2 | DAY | 372 | Provide service engineer to instruct Owner's representative in operation of systems plant and equipment for 2 day period. |
+| 36 | 23 09 23 | Training | minimum of 8 hours dedicated instructor time | 8 | HR | 373 | Include a minimum of 8 hours dedicated instructor time. |
+| 37 | 23 21 13 | Special Tool | Operator | 1 | EA | 385 | Operator: One plug valve wrench for every ten plug valves minimum of one. |
+| 38 | 23 21 23 | Spare Part | Extra Pump Seals | 1 | SET | 393 | Extra Pump Seals: One set for each type and size of pump. |
+| 39 | 23 25 00 | Maintenance Service | service and maintenance of treatment systems for one year from Date of Substantial Completion | 1 | YR | 398 | Furnish service and maintenance of treatment systems for one year from Date of Substantial Completion. |
+| 40 | 23 25 00 | Quantity Not Specified | monthly technical service visits to perform field inspections and make water analysis on site |  |  | 398 | Provide monthly technical service visits to perform field inspections and make water analysis on site. |
+| 41 | 23 25 00 | Maintenance Service | two copies of field service report after each visit | 2 | EA | 398 | Submit two copies of field service report after each visit. |
+| 42 | 23 25 00 | Training | 2 hour training course for operating personnel, instructing them on installation, care, maintenance, testing, | 2 | HR | 398 | Include 2 hour training course for operating personnel, instructing them on installation, care, maintenance, testing, and operation of water treatment systems. |
+| 43 | 23 25 00 | Quantity Not Specified | sufficient chemicals for treatment and testing during warranty period |  |  | 398 | Supply sufficient chemicals for treatment and testing during warranty period. |
+| 44 | 23 25 00 | Quantity Not Specified | Training |  |  | 399 | Training: Train Owner's personnel on operation and maintenance of chemical treatment system. |
+| 45 | 23 25 00 | Training | two hours of instruction for two people | 2 | HR | 399 | Provide minimum of two hours of instruction for two people. |
+| 46 | 23 25 00 | Maintenance Service | service and maintenance of treatment systems for one year from Date of Substantial Completion | 1 | YR | 400 | Provide service and maintenance of treatment systems for one year from Date of Substantial Completion. |
+| 47 | 23 25 00 | Maintenance Service | bi-monthly (every 2 months) technical service visits for the first 6 months to perform field inspections and m | 2 | MO | 400 | Provide bi-monthly (every 2 months) technical service visits for the first 6 months to perform field inspections and make water analysis on site. |
+| 48 | 23 64 23 | Spare Part | Extra Refrigerant | 1 | EA | 414 | Extra Refrigerant: One container. |
+| 49 | 23 64 23 | Spare Part | Extra Lubricating Oil | 1 | EA | 414 | Extra Lubricating Oil: One container. |
+| 50 | 23 64 23 | Extended Warranty | Manufacturer's Warranty | 5 | YR | 414 | Manufacturer's Warranty: Provide minimum Five year warranty to include coverage for materials and labor for compressor. |
+| 51 | 23 64 23 | Quantity Not Specified | Training |  |  | 418 | Training: Train Owner's personnel on operation and maintenance of system. |
+| 52 | 23 64 23 | Training | two hours of training | 2 | HR | 418 | Provide minimum of two hours of training. |
+| 53 | 23 64 23 | Maintenance Service | separate maintenance contract for the service and maintenance of chiller for 2 years from Date of Substantial | 2 | YR | 418 | Provide a separate maintenance contract for the service and maintenance of chiller for 2 years from Date of Substantial Completion. |
+| 54 | 23 64 26 | Spare Part | Extra Refrigerant | 1 | EA | 420 | Extra Refrigerant: One container. |
+| 55 | 23 64 26 | Spare Part | Extra Lubricating Oil | 1 | EA | 420 | Extra Lubricating Oil: One container. |
+| 56 | 23 64 26 | Extended Warranty | Manufacturer's Warranty | 2 | YR | 420 | Manufacturer's Warranty: 2 year parts and labor warranty for entire system. |
+| 57 | 23 64 26 | Extended Warranty | five year warranty to include coverage for materials only for compressor | 5 | YR | 420 | Provide minimum five year warranty to include coverage for materials only for compressor. |
+| 58 | 23 64 26 | Quantity Not Specified | Training |  |  | 424 | Training: Train Owner's personnel on operation and maintenance of system. |
+| 59 | 23 64 26 | Training | two hours of training | 2 | HR | 424 | Provide minimum of two hours of training. |
+| 60 | 23 64 26 | Maintenance Service | separate maintenance contract for the service and maintenance of chiller for 2 years from Date of Substantial | 2 | YR | 424 | Provide a separate maintenance contract for the service and maintenance of chiller for 2 years from Date of Substantial Completion. |
+| 61 | 23 73 13 | Spare Part | Extra Fan Belts | 1 | SET | 426 | Extra Fan Belts: One set for each unit. |
+| 62 | 23 73 13 | Spare Part | Extra Filters | 1 | SET | 426 | Extra Filters: One set for each unit. |
+| 63 | 23 73 13 | Extended Warranty | two year manufacturer parts and labor warranty covering repair or replacement due to defective materials or wo | 2 | YR | 426 | Provide minimum two year manufacturer parts and labor warranty covering repair or replacement due to defective materials or workmanship. |
+| 64 | 23 73 13 | Quantity Not Specified | Training |  |  | 432 | Training: Train Owner's personnel on operation and maintenance of system. |
+| 65 | 23 73 13 | Training | one day of training | 1 | DAY | 432 | Provide minimum of one day of training. |
+| 66 | 23 73 13 | Maintenance Service | service and maintenance of packaged roof top units for [2] years from Date of Substantial Completion | 2 | YR | 432 | Provide service and maintenance of packaged roof top units for [2] years from Date of Substantial Completion. |
+| 67 | 23 73 13 | Maintenance Service | routine maintenance service with a three month interval as maximum time period between calls | 3 | MO | 432 | Provide routine maintenance service with a three month interval as maximum time period between calls. |
+| 68 | 23 73 13 | Maintenance Service | filter replacements - maintenance items as outlined in manufacturer's operating and maintenance data, including | 4 | EA | 433 | Include maintenance items as outlined in manufacturer's operating and maintenance data, including minimum of four (4) filter replacements, minimum of one fan belt replacement, and controls check-out, adjustments, and recalibration. |
+| 69 | 23 73 13 | Maintenance Service | fan belt replacement - maintenance items as outlined in manufacturer's operating and maintenance data, including | 1 | EA | 433 | Include maintenance items as outlined in manufacturer's operating and maintenance data, including minimum of four (4) filter replacements, minimum of one fan belt replacement, and controls check-out, adjustments, and recalibration. |
+| 70 | 23 81 01 | Extended Warranty | five year manufacturers warranty for all motors | 5 | YR | 435 | Provide five year manufacturers warranty for all motors. |
+| 71 | 23 81 01 | Extended Warranty | one year parts and labor warranty for enitre unit, from substitute and completion | 1 | YR | 435 | Provide one year parts and labor warranty for enitre unit, from substitute and completion. |
+| 72 | 23 81 01 | Attic Stock | one (1) set of filters, with a final change immediately prior to occupancy | 1 | SET | 435 | Provide one (1) set of filters, with a final change immediately prior to occupancy. |
+| 73 | 26 27 26 | Attic Stock | two of each style, size, and finish wall plate | 2 | EA | 479 | Furnish two of each style, size, and finish wall plate. |
+| 74 | 26 28 13 | Special Tool | two fuse pullers | 2 | EA | 483 | Furnish two fuse pullers. |
+| 75 | 26 28 13 | Spare Part | three of each size and type fuse installed | 3 | EA | 483 | Furnish three of each size and type fuse installed. |
 ## 8. Full code — spectakeoff.py
 
 ```python
@@ -982,7 +1000,9 @@ def _read_range(args):
             body = sizes[len(sizes) // 2] if sizes else 10
             limit = max(body * 2.5, 20)
             clean = page.filter(lambda o: o.get("object_type") != "char" or o["size"] <= limit)
-            text = clean.extract_text() or ""
+            # the default x_tolerance of 3 pt silently drops a real word space in these fonts
+            # (a space glyph measures ~2.8 pt), which broke the word-for-word promise in R2
+            text = clean.extract_text(x_tolerance=2) or ""
             if not text.strip() and page.images:
                 text = "\x00SCANNED"          # image-only page: needs OCR, never guessed
             out.append(text)
@@ -1285,15 +1305,28 @@ def quantities(sentence):
         m = re.search(r"\b(duplicate|triplicate)\b", s, re.I)
         if m:
             pairs.append((2 if m.group(1).lower() == "duplicate" else 3, "EA", "copies"))
-    if not pairs and re.search(r"\b(bi-?monthly|monthly|quarterly|weekly)\b", s, re.I):
-        pairs.append((1, "EA", re.search(r"\b(bi-?monthly|monthly|quarterly|weekly)\b", s, re.I).group(1)))
+    # A frequency ("monthly", "quarterly") states HOW OFTEN, never how many. The count is the
+    # frequency times the service period, and the period is stated in a different sentence - so
+    # the count is not readable from this quote and no number may be put in Qty (R4).
     return pairs
+
+
+# how often a recurring service happens, and the gap between visits: both are stated as text and
+# neither is a quantity. They are recorded in Basis so the estimator can work the count out.
+FREQ_BASIS = re.compile(r"\b(bi-?monthly|monthly|quarterly|semiannual(?:ly)?|semi-annual(?:ly)?|weekly|"
+                        r"annual(?:ly)?|every \d+ months?|\w+[- ]month interval|"
+                        r"\d+ (?:complete |normal |routine )*inspections? per year)\b", re.I)
 
 
 def basis(sentence):
     m = re.search(r"\b((?:for|of) (?:each|every)\b[^,.;]*|per [^,.;]*|from (?:the )?Date of Substantial Completion|"
                   r"after Acceptance by the Owner|minimum)", sentence, re.I)
-    return m.group(1).strip() if m else ""
+    out = m.group(1).strip() if m else ""
+    f = FREQ_BASIS.search(sentence)
+    if f:
+        note = f"{f.group(1)} - count not stated in this sentence, estimator must compute it"
+        out = f"{out}; {note}" if out else note
+    return out
 
 
 SKIP_RE = re.compile(r"^\s*(See|Refer to) Section|\bdraft\b|preliminary|reviewed and returned|"
@@ -1301,6 +1334,9 @@ SKIP_RE = re.compile(r"^\s*(See|Refer to) Section|\bdraft\b|preliminary|reviewed
                      r"other guarantees required|longer than|\u00a7|User Notes|"
                      r"\bwaives? the right|\bfails to notify\b|\bclaim for breach\b|"
                      r"\bquote\b[^.]{0,80}\bwarrant|"
+                     r"\bwill be subject to\b|\bcause for Owner to charge\b|\bBe prepared to\b|"
+                     r"\bif unable to\b|\bre-?schedule\b|\bshall be accomplished by\b|"
+                     r"\brequire (?:material|product) (?:or product )?suppliers\b|"
                      r"\bmaintain\b[^.]{0,40}\b(?:cop(?:y|ies)|sets?|records?|documents?|prints?)\b"
                      r"[^.]{0,40}\bduring (?:the )?construction period\b", re.I)
 WARRANTY_RE = re.compile(r"warrant|guarant", re.I)
@@ -1393,7 +1429,12 @@ def extract(pdf_path, ocr=None):
                            r"record (?:prints|specifications|product data|documents)|instruction(?:al)? program|"
                            r"\bmanuals?\b|DVD|training manual", re.I)
     VERB = re.compile(r"\b(provide|furnish|supply|submit|attach|deliver|turn over)\b", re.I)
+    TEMPORARY = re.compile(r"\bTEMPORARY\b")
     for it in items:
+        # Temporary Facilities and Controls is removed at the end of the job; nothing in it is
+        # handed over to the Owner, so its keys and materials are not closeout items
+        if TEMPORARY.search((titles.get(sec_of_page[it["page"] - 1], "") or "").upper()):
+            continue
         relevant = (bool(RELEVANT_HEADING.search(it["heading"])) or bool(RELEVANT_LABEL.match(it["text"]))
                     or bool(RELEVANT_LABEL.match(it["parent"])))
         sents = sentences(it)
@@ -1444,6 +1485,10 @@ def extract(pdf_path, ocr=None):
                         and re.search(r"\b(provide|furnish|supply|submit|attach|deliver|turn over)\b", sent, re.I):
                     pairs = [(1, "EA", "")]
                 elif QNS_RE.search(sent) or re.search(r"final copies", sent, re.I) or INFRARED_RE.search(sent):
+                    pairs, kind = [(None, "", "")], "Quantity Not Specified"
+                elif kind == "Maintenance Service" and FREQ_BASIS.search(sent):
+                    # a recurring service whose frequency is stated but whose count is not: the
+                    # obligation is real, the number of visits is not in the spec text
                     pairs, kind = [(None, "", "")], "Quantity Not Specified"
                 elif g_handover or g_instruct:
                     pairs, kind = [(None, "", "")], "Quantity Not Specified"
@@ -1724,7 +1769,31 @@ RCCD regression: PASS. Speed PASS (17 s RCCD, 8 s ECISD, against the 300 s limit
 obligations present, 0 regressions. R10 CONFLICT p.398/p.400 present. 26 28 18 flagged CHECK.
 Determinism PASS (three runs byte-identical). No check was removed, loosened or bypassed.
 
-### 9.3 Open decisions for LV - these need YOUR call, not a code change
+### 9.3 Everything in this list is now FIXED (it was previously left open)
+
+1. **A frequency is no longer a count.** "Provide monthly technical service visits" produced
+   `Qty 1 EA` although the sentence contains no number - a straight breach of R4. The frequency
+   now goes into Basis as quoted text ("monthly - count not stated in this sentence, estimator must
+   compute it") and the row carries an empty Qty. Same for "quarterly, semiannual, and annual".
+2. **An interval is no longer sold as a duration.** "every 2 months", "three month interval" and
+   "N inspections per year" are recorded in Basis the same way instead of standing in Qty alone.
+3. **Section 7 is regenerated** from a verified run and is now the golden baseline. The old
+   hand-typed table was wrong on the rows listed at the top of section 7.
+4. **Dropped word spaces are gone.** Extraction now uses `x_tolerance=2`, because the default of
+   3 pt silently swallowed real word spaces in these fonts ("for 2years", "One setfor each unit").
+   All 75 RCCD quotes now appear word for word in the raw text of their cited page.
+5. **Temporary-facilities duties are excluded.** Keys to the temporary construction fence are not a
+   closeout handover; sections titled TEMPORARY ... are skipped.
+6. **Administrative clauses are excluded** - scheduling conditions, back-charge clauses,
+   "be prepared to answer questions", "shall be accomplished by", supplier-staffing requirements.
+
+Measured after the fixes: RCCD 75 rows, **0 R4 violations, 0 non-verbatim quotes, 67/67**
+obligations, R10 conflict p.398/p.400 present, 26 28 18 flagged CHECK, 17 s. ECISD 25 rows,
+0 R4 violations; its one quote that is not contiguous in the raw page text is the chiller
+maintenance sentence split by the footer "Page 2 of 12" on p.206/207, which is the bounded R2 case
+and is correct.
+
+### 9.3b Still for LV to judge - genuine spec ambiguity, not code defects
 
 1. **A frequency is not a count.** "Provide monthly technical service visits" (RCCD p.398) and
    "report quarterly, semiannual, and annual maintenance" (ECISD p.207) are reported as Qty 1 EA.
