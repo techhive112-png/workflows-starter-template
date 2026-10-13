@@ -1,0 +1,7 @@
+# downloaded specification PDFs - large, and the URLs in urls.txt are the source of record
+specs/
+# transient output of selftest.py and batch.py runs
+*_selftest.xlsx
+*_selftest2.xlsx
+__pycache__/
+*.pkl
