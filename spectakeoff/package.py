@@ -26,7 +26,7 @@ MD = os.path.join(HERE, "SPECTAKEOFF_ALL_IN_ONE.md")
 CODE = os.path.join(HERE, "spectakeoff.py")
 BEGIN, END = "# BEGIN spectakeoff.py\n", "# END spectakeoff.py"
 # every script that travels inside the .md, each between its own "# BEGIN x.py" / "# END x.py"
-FILES = ["spectakeoff.py", "selftest.py", "package.py", "batch.py"]
+FILES = ["spectakeoff.py", "selftest.py", "package.py", "batch.py", "verify_rccd.py"]
 MANIFEST = re.compile(r"<!-- MANIFEST (\{[^>]*?\}) -->")
 BASELINE_RE = re.compile(r"^## (\d+)\.\s+(\S+)\s+regression baseline.*?$.*?(?=^## \d+\.|\Z)",
                          re.S | re.M)
