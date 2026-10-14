@@ -2748,3 +2748,71 @@ the file, then regenerate this section with `package.py --baseline`.
 | 48 | 07 92 00 | Extended Warranty | Warranty Period | 4 | YR | 322 | Warranty Period: Four years from date of Substantial Completion. |
 | 49 | 07 92 00 | Spare Part | Unit Ventilator Filters | 1 | SET | 322 | Unit Ventilator Filters: Furnish one set of spare filter(s) for each filter installed. |
 | 50 | 07 92 00 | Quantity Not Specified | Operation and Maintenance Data |  |  | 358 | Operation and Maintenance Data: For fire-alarm systems and components to include in emergency, operation, and maintenance manuals. |
+
+## 15. The target — what SpecTakeoff must eventually do (agreed with LV)
+
+This is the full scope the owner wants, recorded so it cannot be lost between sessions. It is the
+destination, not a description of today. Section 9.5 holds the next steps; this holds the whole map.
+
+### 15.1 The rule that protects the product — decide nothing against this
+
+The reason an estimator will trust this tool is that **every row is traceable to a page and a
+quote**. The moment calculated hours, measured lengths and assumed crew sizes are mixed into the
+same table as cited rows, that trust is gone: the client can no longer see where the specification
+ends and an estimate begins. That is exactly how another AI produced twelve fabricated rows.
+
+So everything below is built in **two separate layers, never merged into one column**:
+
+| | Layer 1 — EVIDENCE | Layer 2 — ESTIMATE |
+|---|---|---|
+| What it is | What the documents actually say | What follows from it |
+| Source of every value | quote + page + section | formula + stated assumptions + a named productivity source |
+| May it ever be inferred? | **Never** (R1–R16 apply in full) | Yes, but every assumption is printed next to the number |
+| Where it appears | the sheets that exist today | **its own sheets**, never inside the Closeout Schedule |
+
+Every Layer 2 cell shows its working: `12 pumps (M-201 pump schedule) x 1 set = 12`, or
+`8 h x 2 persons at <named rate source>`. The estimator can overwrite one input and see what moves.
+That, not the word "AI", is what gets paid for.
+
+**"AI" in this project means: better reading of documents, never invented numbers.** A model may
+help find and classify a requirement; the quantity, the page and the quote stay deterministic and
+checkable. No agent may write a row that `selftest.py` cannot verify against the PDF.
+
+### 15.2 The full capability list
+
+Status as of this revision. Items 1-8 are the owner's list; 9-17 were added because they are worth
+more than some of 1-8 or are needed to make them work.
+
+| # | Capability | Status | How it is actually done |
+|---|---|---|---|
+| 1 | Read specification data | **DONE** | five specs, four states, both numbering systems |
+| 2 | Attic stock, spares, tools, O&M, training, warranties, service | **DONE** | the eight row types |
+| 3 | Read drawings | code exists, unproven | vector PDF: equipment tags (`CHWP-1`), equipment schedules as tables, sheet index, title block. Deterministic, no model needed. **Unlocks #4. Needs one real M/E drawing set.** |
+| 4 | Calculate material quantities | partial | possible only once #3 works: `1 set for each pump x 12 pumps`. Without a drawing or a counts file the count must stay flagged, never assumed (R8) |
+| 5 | Measure details on drawings | not started | PDF vector geometry + the scale from the title block or scale bar, converted to real lengths: pipe runs, duct lengths, areas. Deterministic. Only works on vector drawings, not scans |
+| 6 | Read photos / scans | OCR exists, unproven on real scans | OCR reads text from a photo. **Measuring from a photo is not reliable** - perspective destroys it. Photos document condition; they do not do takeoff. Say so to clients |
+| 7 | Determine labor hours | only where stated | to get hours from a quantity needs a productivity database (hours per unit). Source: a licensed database or LV's own historical job data. Without one, any hour figure is invented and rule 1 forbids it |
+| 8 | Determine number of workers | not started | derives from #7: crew = hours / working days / shift length. Not a separate feature |
+| 9 | Specification vs drawing conflicts | not started | the R10 conflict mechanism, pointed at the drawings: spec says three chillers, drawings show two. **This is the money-maker** |
+| 10 | Generate the RFI letter | not started | the tool already finds conflicts and omissions (26 28 18 "furnish the following" with no list). Print the letter with the quote and page attached |
+| 11 | Submittal register and closeout calendar | not started, data already captured | the deadlines the extractor currently masks ("within 15 days before final inspection") become dates instead of being discarded. Nearly free |
+| 12 | Addenda and revision comparison | not started | Rev A against Rev B: what changed. The golden-baseline diff in `selftest.py` is the same mechanism pointed at two versions of a spec |
+| 13 | Pricing | not started | material prices and labor rates. This is the step from "requirements list" to "bid", and where liability becomes real |
+| 14 | Responsible trade per row | not started | derived from the section number. Trivial, and it makes the file usable for assigning work |
+| 15 | One project = several files | not started | spec + drawings + addenda under one project id |
+| 16 | Units and unfilled templates | partial | imperial vs metric, and spotting a template left unedited (`[32-oz. (1-L)]`, an empty "Number of Copies:" list). An unfilled template is itself a finding to report |
+| 17 | Change log for the client | partial | re-running the same spec later: what changed in the output and why. The baselines already exist; only the client-facing view is missing |
+
+### 15.3 Build order
+
+1. **Drawings: tags and equipment schedules** (#3) - unlocks the quantities in #4, deterministic,
+   does not weaken any guarantee. Blocked only on getting one real M/E drawing set.
+2. **Spec vs drawing conflicts + RFI generation** (#9, #10) - sells immediately, because it finds
+   money rather than producing another list.
+3. **Submittal register / closeout calendar** (#11) - almost free, the data is already found.
+4. **Drawing measurement** (#5) - the real technical differentiator.
+5. **Productivity database, then hours and crew size** (#7, #8) - last, because without the data it
+   is a guess, and a guess is forbidden here.
+
+Pricing (#13) comes after 5, and only with the owner's explicit decision about liability.
+
