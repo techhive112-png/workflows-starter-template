@@ -1,125 +1,188 @@
+import { checkOwner } from "./auth";
+import { OWNER_CENTER, type OwnerDecision } from "./agent-workflow";
+
 // Export the Workflow and Durable Object classes
-export { MyWorkflow } from "./workflow";
-export { WorkflowStatusDO } from "./durable-object";
+export { AgentTaskWorkflow } from "./agent-workflow";
+export { CommandCenterDO } from "./command-center";
 
 /**
- * Main Worker fetch handler
+ * Personal AI Command Center - owner-only API.
  *
- * Handles API routes and WebSocket upgrade requests for workflow management:
- * - POST /api/workflow/start - Create new workflow instance
- * - GET /api/workflow/status/:id - Get workflow status
- * - POST /api/workflow/event/:id - Send events to workflow
- * - GET /ws - WebSocket connection for real-time updates
+ * Every /api route requires `Authorization: Bearer <OWNER_TOKEN>`.
+ *
+ * - GET    /api/state                 Full dashboard state
+ * - POST   /api/ws-ticket             One-time ticket for the live WebSocket
+ * - PUT    /api/settings              Rules, blocked terms, kill switch, owner name
+ * - POST   /api/workers               Create an AI worker
+ * - PUT    /api/workers/:id           Update an AI worker
+ * - DELETE /api/workers/:id           Delete an AI worker
+ * - POST   /api/tasks                 Give a worker a task
+ * - POST   /api/tasks/:id/decision    Approve or reject a worker's result
+ * - POST   /api/tasks/:id/cancel      Stop a task
+ * - DELETE /api/tasks                 Clear finished tasks
+ * - GET    /ws?ticket=...             Live updates
  */
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
+		const center = env.COMMAND_CENTER.get(
+			env.COMMAND_CENTER.idFromName(OWNER_CENTER),
+		);
 
-		// API: Start a new workflow instance
-		if (url.pathname === "/api/workflow/start" && request.method === "POST") {
-			try {
-				const instance = await env.MY_WORKFLOW.create({
-					params: {
-						timestamp: Date.now(),
-					},
-				});
-
-				return Response.json({
-					instanceId: instance.id,
-					message: "Workflow started successfully",
-				});
-			} catch {
-				return Response.json(
-					{ error: "Failed to start workflow" },
-					{ status: 500 },
-				);
-			}
-		}
-
-		// API: Get workflow status
-		if (url.pathname.startsWith("/api/workflow/status/")) {
-			const instanceId = url.pathname.split("/").pop();
-			if (!instanceId) {
-				return Response.json(
-					{ error: "Instance ID required" },
-					{ status: 400 },
-				);
-			}
-
-			try {
-				const instance = await env.MY_WORKFLOW.get(instanceId);
-				const status = await instance.status();
-				return Response.json(status);
-			} catch {
-				return Response.json(
-					{ error: "Failed to get workflow status" },
-					{ status: 500 },
-				);
-			}
-		}
-
-		// API: Send event to workflow instance
-		if (
-			url.pathname.startsWith("/api/workflow/event/") &&
-			request.method === "POST"
-		) {
-			const instanceId = url.pathname.split("/").pop();
-			if (!instanceId) {
-				return Response.json(
-					{ error: "Instance ID required" },
-					{ status: 400 },
-				);
-			}
-
-			try {
-				const body = (await request.json()) as {
-					approved: boolean;
-					comment?: string;
-				};
-				const instance = await env.MY_WORKFLOW.get(instanceId);
-
-				await instance.sendEvent({
-					type: "user-approval",
-					payload: body,
-				});
-
-				return Response.json({
-					success: true,
-					message: "Event sent successfully",
-				});
-			} catch {
-				return Response.json(
-					{ error: "Failed to send event" },
-					{ status: 500 },
-				);
-			}
-		}
-
-		// WebSocket: Connect to workflow status updates
+		// The WebSocket is authorised by a one-time ticket checked in the DO
 		if (url.pathname === "/ws") {
-			const instanceId = url.searchParams.get("instanceId");
-			if (!instanceId) {
-				return new Response("instanceId query parameter required", {
-					status: 400,
-				});
-			}
-
-			const upgradeHeader = request.headers.get("Upgrade");
-			if (upgradeHeader !== "websocket") {
+			if (request.headers.get("Upgrade") !== "websocket") {
 				return new Response("Expected Upgrade: websocket", { status: 426 });
 			}
-
-			try {
-				const doId = env.WORKFLOW_STATUS.idFromName(instanceId);
-				const stub = env.WORKFLOW_STATUS.get(doId);
-				return stub.fetch(request);
-			} catch {
-				return new Response("Failed to establish WebSocket connection", {
-					status: 500,
-				});
-			}
+			return center.fetch(request);
 		}
 
-		return Response.json({ error: "Not Found" }, { status: 404 });
+		if (!url.pathname.startsWith("/api/")) {
+			return json({ error: "Not Found" }, 404);
+		}
+
+		const auth = checkOwner(request, env);
+		if (!auth.ok) return json({ error: auth.error }, auth.status);
+
+		const parts = url.pathname.split("/").filter(Boolean).slice(1); // drop "api"
+		const [resource, id, action] = parts;
+		const method = request.method;
+
+		try {
+			if (resource === "state" && method === "GET") {
+				return json(await center.getState());
+			}
+
+			if (resource === "ws-ticket" && method === "POST") {
+				return json({ ticket: await center.issueTicket() });
+			}
+
+			if (resource === "settings" && method === "PUT") {
+				const body = await readJson(request);
+				const settings = await center.updateSettings(body);
+				if (body.killSwitch === true) {
+					await stopActiveTasks(env, center, "Stopped by kill switch.");
+				}
+				return json(settings);
+			}
+
+			if (resource === "workers") {
+				if (!id && method === "POST") {
+					return json(await center.createWorker(await readJson(request)), 201);
+				}
+				if (id && method === "PUT") {
+					return json(await center.updateWorker(id, await readJson(request)));
+				}
+				if (id && method === "DELETE") {
+					await center.deleteWorker(id);
+					return json({ ok: true });
+				}
+			}
+
+			if (resource === "tasks") {
+				if (!id && method === "POST") {
+					const body = await readJson(request);
+					const workerId = String(body.workerId ?? "");
+					const instruction = String(body.instruction ?? "").trim();
+					if (!instruction)
+						return json({ error: "Instruction is required" }, 400);
+
+					const settings = await center.getSettings();
+					if (settings.killSwitch) {
+						return json(
+							{ error: "Kill switch is on. Turn it off to assign tasks." },
+							409,
+						);
+					}
+
+					const task = await center.createTask(workerId, instruction);
+					await env.AGENT_TASK.create({
+						id: task.id,
+						params: { taskId: task.id },
+					});
+					return json(task, 201);
+				}
+
+				if (!id && method === "DELETE") {
+					await center.clearFinishedTasks();
+					return json({ ok: true });
+				}
+
+				if (id && action === "decision" && method === "POST") {
+					const task = await center.getTask(id);
+					if (!task) return json({ error: "Task not found" }, 404);
+					if (task.status !== "awaiting_approval") {
+						return json({ error: "Task is not waiting for your review" }, 409);
+					}
+					const body = await readJson(request);
+					const decision: OwnerDecision = {
+						approved: body.approved === true,
+						note: typeof body.note === "string" ? body.note : undefined,
+					};
+					const instance = await env.AGENT_TASK.get(id);
+					await instance.sendEvent({
+						type: "owner-decision",
+						payload: decision,
+					});
+					return json({ ok: true });
+				}
+
+				if (id && action === "cancel" && method === "POST") {
+					await terminate(env, id);
+					const task = await center.updateTask(
+						id,
+						{ status: "cancelled", note: "Cancelled by owner." },
+						"owner",
+					);
+					if (!task) return json({ error: "Task not found" }, 404);
+					return json(task);
+				}
+			}
+
+			return json({ error: "Not Found" }, 404);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : "Request failed";
+			const status = /not found/i.test(message) ? 404 : 400;
+			return json({ error: message }, status);
+		}
 	},
 } satisfies ExportedHandler<Env>;
+
+async function stopActiveTasks(
+	env: Env,
+	center: DurableObjectStub<import("./command-center").CommandCenterDO>,
+	note: string,
+) {
+	const ids = await center.activeTaskIds();
+	for (const id of ids) {
+		await terminate(env, id);
+		await center.updateTask(id, { status: "cancelled", note }, "owner");
+	}
+}
+
+async function terminate(env: Env, id: string) {
+	try {
+		const instance = await env.AGENT_TASK.get(id);
+		await instance.terminate();
+	} catch {
+		// Already finished or never started
+	}
+}
+
+async function readJson(request: Request): Promise<Record<string, unknown>> {
+	try {
+		const body = await request.json();
+		return body && typeof body === "object"
+			? (body as Record<string, unknown>)
+			: {};
+	} catch {
+		return {};
+	}
+}
+
+function json(data: unknown, status = 200): Response {
+	return Response.json(data, {
+		status,
+		headers: { "Cache-Control": "no-store" },
+	});
+}

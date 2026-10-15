@@ -1,62 +1,64 @@
 /**
- * Shared TypeScript types for the Workflows starter template
+ * Shared types for the Command Center dashboard (mirrors worker/command-center.ts)
  */
 
-export type StepStatus =
-	| "pending"
-	| "running"
-	| "waiting"
-	| "completed"
-	| "error";
-export type WorkflowStatus = "idle" | "running" | "completed" | "error";
+export interface Settings {
+	ownerName: string;
+	killSwitch: boolean;
+	globalRules: string[];
+	blockedTerms: string[];
+}
 
-export interface StepDefinition {
+export interface AgentWorker {
 	id: string;
 	name: string;
-	description: string;
-	lineRange: [number, number];
+	role: string;
+	rules: string[];
+	enabled: boolean;
+	requireApproval: boolean;
+	createdAt: number;
 }
 
-export interface WorkflowState {
-	instanceId: string | null;
-	currentStep: string | null;
-	stepStatuses: Record<string, StepStatus>;
-	workflowStatus: WorkflowStatus;
-	wsConnected: boolean;
+export type TaskStatus =
+	| "queued"
+	| "running"
+	| "awaiting_approval"
+	| "approved"
+	| "completed"
+	| "rejected"
+	| "blocked"
+	| "failed"
+	| "cancelled";
+
+export interface Task {
+	id: string;
+	workerId: string;
+	workerName: string;
+	instruction: string;
+	status: TaskStatus;
+	output: string | null;
+	note: string | null;
+	createdAt: number;
+	updatedAt: number;
 }
 
-export interface WorkflowUpdateMessage {
-	type: "workflow_update";
-	currentStep: string | null;
-	stepStatuses: Record<string, StepStatus>;
-	workflowStatus: "running" | "completed" | "error";
-	timestamp: number;
+export interface AuditEntry {
+	id: number;
+	at: number;
+	actor: string;
+	action: string;
+	detail: string;
 }
 
-// Step definitions for the workflow
-export const WORKFLOW_STEPS: StepDefinition[] = [
-	{
-		id: "process-data",
-		name: "process data",
-		description: "Break code into durable steps",
-		lineRange: [3, 7],
-	},
-	{
-		id: "wait-2-seconds",
-		name: "wait 2 seconds",
-		description: "Add time-based delays",
-		lineRange: [9, 10],
-	},
-	{
-		id: "wait-for-approval",
-		name: "wait for approval",
-		description: "Pause for external events",
-		lineRange: [12, 16],
-	},
-	{
-		id: "final",
-		name: "final",
-		description: "Use data from previous steps",
-		lineRange: [18, 22],
-	},
+export interface CommandCenterState {
+	settings: Settings;
+	workers: AgentWorker[];
+	tasks: Task[];
+	audit: AuditEntry[];
+}
+
+export const ACTIVE_STATUSES: TaskStatus[] = [
+	"queued",
+	"running",
+	"awaiting_approval",
 ];

@@ -4,49 +4,65 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "workflows-starter-template",
+	"name": "personal-ai-command-center",
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-10-08",
 	"assets": {
 		"directory": "./dist",
-		"not_found_handling": "single-page-application"
+		"not_found_handling": "single-page-application",
+		// API and WebSocket routes always go to the Worker (owner check runs there)
+		"run_worker_first": ["/api/*", "/ws"]
 	},
 	"observability": {
 		"enabled": true
 	},
 	/**
-	 * Workflows
-	 * Define Workflows to orchestrate multi-step processes
+	 * Workers AI - the brain of your AI workers
+	 * https://developers.cloudflare.com/workers-ai/
+	 */
+	"ai": {
+		"binding": "AI"
+	},
+	"vars": {
+		// Any Workers AI text-generation model
+		"AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+	},
+	/**
+	 * Secrets (never commit these):
+	 *   OWNER_TOKEN - your private password for the Command Center (16+ chars)
+	 *   Set with: npx wrangler secret put OWNER_TOKEN
+	 *   Local dev: put OWNER_TOKEN=... in .dev.vars
+	 */
+	"secrets": {
+		"required": ["OWNER_TOKEN"]
+	},
+	/**
+	 * Workflows - one durable run per task
 	 * https://developers.cloudflare.com/workflows/
 	 */
 	"workflows": [
 		{
-			"name": "my-workflow",
-			"binding": "MY_WORKFLOW",
-			"class_name": "MyWorkflow"
+			"name": "agent-task",
+			"binding": "AGENT_TASK",
+			"class_name": "AgentTaskWorkflow"
 		}
 	],
 	/**
-	 * Durable Objects
-	 * Used for WebSocket state management and real-time updates
+	 * Durable Objects - stores your rules, workers, tasks and audit log
 	 * https://developers.cloudflare.com/durable-objects/
 	 */
 	"durable_objects": {
 		"bindings": [
 			{
-				"name": "WORKFLOW_STATUS",
-				"class_name": "WorkflowStatusDO"
+				"name": "COMMAND_CENTER",
+				"class_name": "CommandCenterDO"
 			}
 		]
 	},
-	/**
-	 * Migrations
-	 * Required for Durable Objects
-	 */
 	"migrations": [
 		{
 			"tag": "v1",
-			"new_sqlite_classes": ["WorkflowStatusDO"]
+			"new_sqlite_classes": ["CommandCenterDO"]
 		}
 	],
 	"upload_source_maps": true

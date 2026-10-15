@@ -1,121 +1,165 @@
-import { useState, useEffect } from "react";
-import { WorkflowDiagram } from "./components/WorkflowDiagram";
-import { CodeDisplay } from "./components/CodeDisplay";
+import { useEffect, useState } from "react";
+import { api, ApiError, loadToken, saveToken } from "./api";
 import { BackgroundDots } from "./components/BackgroundDots";
-import { useWorkflowWebSocket } from "./hooks/useWorkflowWebSocket";
-import { WORKFLOW_STEPS } from "./types";
+import { AuditLog } from "./components/AuditLog";
+import { Login } from "./components/Login";
+import { RulesPanel } from "./components/RulesPanel";
+import { TaskComposer, TaskFeed } from "./components/TasksPanel";
+import { WorkersPanel } from "./components/WorkersPanel";
+import { Button } from "./components/ui";
+import { useCommandCenter } from "./hooks/useCommandCenter";
 
 function App() {
-	const [instanceId, setInstanceId] = useState<string | null>(null);
-	const [isStarting, setIsStarting] = useState(false);
-	const workflowState = useWorkflowWebSocket(instanceId);
+	const [token, setToken] = useState<string | null>(loadToken);
 
-	useEffect(() => {
-		if (workflowState.workflowStatus === "completed") {
-			const timer = setTimeout(() => {
-				setInstanceId(null);
-			}, 1500);
-			return () => clearTimeout(timer);
-		}
-	}, [workflowState.workflowStatus]);
-
-	useEffect(() => {
-		if (
-			workflowState.workflowStatus === "running" &&
-			workflowState.currentStep
-		) {
-			setIsStarting(false);
-		}
-	}, [workflowState.workflowStatus, workflowState.currentStep]);
-
-	const handleStartWorkflow = async () => {
-		setIsStarting(true);
-
-		try {
-			const response = await fetch("/api/workflow/start", {
-				method: "POST",
-			});
-
-			if (!response.ok) {
-				throw new Error("Failed to start workflow");
-			}
-
-			const data = await response.json();
-			setInstanceId(data.instanceId);
-		} catch {
-			alert("Failed to start workflow. Please try again.");
-			setIsStarting(false);
-		}
+	const login = (t: string) => {
+		saveToken(t);
+		setToken(t);
+	};
+	const logout = () => {
+		saveToken(null);
+		setToken(null);
 	};
 
 	return (
-		<div className="min-h-screen bg-neutral-50/30 dark:bg-neutral-950 flex flex-col relative">
-			{/* Background dots across entire page */}
-			<div className="absolute inset-0 text-neutral-200/50 dark:text-neutral-700/40 overflow-hidden">
+		<div className="min-h-screen bg-neutral-50/30 dark:bg-neutral-950 relative">
+			<div className="absolute inset-0 text-neutral-200/50 dark:text-neutral-700/40 overflow-hidden pointer-events-none">
 				<BackgroundDots />
 			</div>
+			{token ? (
+				<Dashboard token={token} onLogout={logout} />
+			) : (
+				<Login onLogin={login} />
+			)}
+		</div>
+	);
+}
 
-			{/* Minimal Integrated Header */}
-			<header className="px-6 pt-6 pb-4 relative z-10">
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-3">
-						<svg
-							role="img"
-							viewBox="0 0 460 271.2"
-							aria-hidden="true"
-							className="h-5 w-auto opacity-90"
-						>
-							<path
-								fill="#FBAD41"
-								d="M328.6,125.6c-0.8,0-1.5,0.6-1.8,1.4l-4.8,16.7c-2.1,7.2-1.3,13.8,2.2,18.7c3.2,4.5,8.6,7.1,15.1,7.4l26.2,1.6c0.8,0,1.5,0.4,1.9,1c0.4,0.6,0.5,1.5,0.3,2.2c-0.4,1.2-1.6,2.1-2.9,2.2l-27.3,1.6c-14.8,0.7-30.7,12.6-36.3,27.2l-2,5.1c-0.4,1,0.3,2,1.4,2h93.8c1.1,0,2.1-0.7,2.4-1.8c1.6-5.8,2.5-11.9,2.5-18.2c0-37-30.2-67.2-67.3-67.2C330.9,125.5,329.7,125.5,328.6,125.6z"
-							/>
-							<path
-								fill="#F6821F"
-								d="M292.8,204.4c2.1-7.2,1.3-13.8-2.2-18.7c-3.2-4.5-8.6-7.1-15.1-7.4l-123.1-1.6c-0.8,0-1.5-0.4-1.9-1s-0.5-1.4-0.3-2.2c0.4-1.2,1.6-2.1,2.9-2.2l124.2-1.6c14.7-0.7,30.7-12.6,36.3-27.2l7.1-18.5c0.3-0.8,0.4-1.6,0.2-2.4c-8-36.2-40.3-63.2-78.9-63.2c-35.6,0-65.8,23-76.6,54.9c-7-5.2-15.9-8-25.5-7.1c-17.1,1.7-30.8,15.4-32.5,32.5c-0.4,4.4-0.1,8.7,0.9,12.7c-27.9,0.8-50.2,23.6-50.2,51.7c0,2.5,0.2,5,0.5,7.5c0.2,1.2,1.2,2.1,2.4,2.1h227.2c1.3,0,2.5-0.9,2.9-2.2L292.8,204.4z"
-							/>
-						</svg>
-						<div className="w-px h-4 bg-neutral-300/50 dark:bg-neutral-600/50" />
-						<h1 className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-							Workflows Starter Template
-						</h1>
-					</div>
+function Dashboard({
+	token,
+	onLogout,
+}: {
+	token: string;
+	onLogout: () => void;
+}) {
+	const { state, connected, unauthorized } = useCommandCenter(token);
+	const [error, setError] = useState<string | null>(null);
 
-					<a
-						href="https://developers.cloudflare.com/workflows"
-						target="_blank"
-						rel="noopener noreferrer"
-						className="text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 transition-colors"
+	useEffect(() => {
+		if (unauthorized) onLogout();
+	}, [unauthorized, onLogout]);
+
+	const call = async (path: string, method: string, body?: unknown) => {
+		setError(null);
+		try {
+			await api(token, path, method, body);
+		} catch (err) {
+			if (err instanceof ApiError && err.status === 401) onLogout();
+			setError(err instanceof Error ? err.message : "Something went wrong");
+			throw err;
+		}
+	};
+	// UI handlers swallow the error after showing it
+	const run = (path: string, method: string, body?: unknown) =>
+		call(path, method, body).catch(() => {});
+
+	if (!state) {
+		return (
+			<div className="min-h-screen flex items-center justify-center text-sm text-neutral-500 relative z-10">
+				Connecting to your Command Center…
+			</div>
+		);
+	}
+
+	const { settings, workers, tasks, audit } = state;
+	const pending = tasks.filter((t) => t.status === "awaiting_approval").length;
+
+	return (
+		<div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6">
+			<header className="flex flex-wrap items-center justify-between gap-3 mb-6">
+				<div>
+					<h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+						{settings.ownerName}'s AI Command Center
+					</h1>
+					<p className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
+						<span
+							className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-emerald-500" : "bg-neutral-400"}`}
+						/>
+						{connected ? "Live" : "Reconnecting…"} · {workers.length} worker
+						{workers.length === 1 ? "" : "s"}
+						{pending > 0 && ` · ${pending} waiting for your review`}
+					</p>
+				</div>
+				<div className="flex items-center gap-2">
+					<Button
+						variant={settings.killSwitch ? "primary" : "danger"}
+						onClick={() => {
+							if (
+								settings.killSwitch ||
+								confirm(
+									"Stop ALL workers now? Running tasks will be cancelled.",
+								)
+							) {
+								run("/api/settings", "PUT", {
+									killSwitch: !settings.killSwitch,
+								});
+							}
+						}}
 					>
-						Documentation →
-					</a>
+						{settings.killSwitch ? "▶ Resume workers" : "■ Kill switch"}
+					</Button>
+					<Button variant="ghost" onClick={onLogout}>
+						Lock
+					</Button>
 				</div>
 			</header>
 
-			{/* Main content - unified canvas */}
-			<main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative z-10">
-				{/* Left side - Code (responsive width) */}
-				<div className="w-full lg:w-[60%] overflow-hidden px-6 pb-6">
-					<CodeDisplay
-						currentStep={workflowState.currentStep}
-						workflowStatus={workflowState.workflowStatus}
-						onStartWorkflow={handleStartWorkflow}
-						isStarting={isStarting}
-					/>
+			{settings.killSwitch && (
+				<div className="mb-4 rounded-lg bg-red-600 text-white text-sm px-4 py-2.5">
+					Kill switch is ON. No worker can run until you resume them.
 				</div>
+			)}
+			{error && (
+				<div className="mb-4 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 text-sm px-4 py-2.5 flex justify-between gap-3">
+					<span>{error}</span>
+					<button onClick={() => setError(null)} aria-label="Dismiss">
+						×
+					</button>
+				</div>
+			)}
 
-				{/* Right side - Diagram (responsive width) */}
-				<div className="flex-1 overflow-hidden px-6 lg:pl-8 lg:pr-6 pb-6">
-					<WorkflowDiagram
-						steps={WORKFLOW_STEPS}
-						stepStatuses={workflowState.stepStatuses}
-						currentStep={workflowState.currentStep}
-						instanceId={instanceId}
-						workflowStatus={workflowState.workflowStatus}
-						onStartWorkflow={handleStartWorkflow}
-						isStarting={isStarting}
+			<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+				<div className="space-y-4 min-w-0">
+					<TaskComposer
+						workers={workers}
+						killSwitch={settings.killSwitch}
+						onAssign={(workerId, instruction) =>
+							call("/api/tasks", "POST", { workerId, instruction })
+						}
+					/>
+					<WorkersPanel
+						workers={workers}
+						onCreate={(draft) => call("/api/workers", "POST", draft)}
+						onUpdate={(id, patch) => call(`/api/workers/${id}`, "PUT", patch)}
+						onDelete={(id) => run(`/api/workers/${id}`, "DELETE")}
+					/>
+					<RulesPanel
+						settings={settings}
+						onSave={(patch) => call("/api/settings", "PUT", patch)}
 					/>
 				</div>
-			</main>
+				<div className="space-y-4 min-w-0">
+					<TaskFeed
+						tasks={tasks}
+						onDecide={(id, approved, note) =>
+							run(`/api/tasks/${id}/decision`, "POST", { approved, note })
+						}
+						onCancel={(id) => run(`/api/tasks/${id}/cancel`, "POST")}
+						onClear={() => run("/api/tasks", "DELETE")}
+					/>
+					<AuditLog entries={audit} />
+				</div>
+			</div>
 		</div>
 	);
 }
