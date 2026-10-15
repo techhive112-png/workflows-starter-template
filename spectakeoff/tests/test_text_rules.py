@@ -101,3 +101,77 @@ def test_faa_style_headings_and_heading_only_spans():
     found, _ = extract_requirements("The RPR must witness this demonstration and approve the lift thickness.",
                                     "x", 1, SectionState("50", "t"), "", "m", None)
     assert found == []
+
+
+def test_whole_word_closeout_terms():
+    # v3 matched "training" inside "air-entraining"
+    found, _ = extract_requirements("Air-entraining admixtures shall meet the requirements of ASTM C260.",
+                                    "x", 1, SectionState("P-501", "t"), "", "m", None)
+    assert found == []
+    assert classify("The Contractor warrants that the work conforms.") == "Warranty"
+
+
+def test_clarifications_cross_references_and_device_features_are_not_requirements():
+    st = SectionState("90", "t")
+    for text in ["The furnishing of the vendor's certified test report shall not be interpreted as a basis "
+                 "for final acceptance.",
+                 "Manufacturer's certifications shall not relieve the Contractor of the responsibility to "
+                 "provide materials.",
+                 "The Government makes no guarantee that the GFM provide the level of completeness required.",
+                 "Submit the following in accordance with Section 01 33 00 SUBMITTAL PROCEDURES:",
+                 "Provide controllers with one spare normally open auxiliary contact.",
+                 "Copper press connections must be made in strict accordance with the manufacturer's "
+                 "installation instructions.",
+                 "The Contractor shall deposit only bank certificates of deposit acceptable to the Owner."]:
+        assert extract_requirements(text, "x", 1, st, "", "m", None)[0] == [], text
+    ok, _ = extract_requirements("Submit two copies of operation and maintenance data in accordance with "
+                                 "Section 01 78 23 OPERATION AND MAINTENANCE DATA.", "x", 1, st, "", "m", None)
+    assert len(ok) == 1
+
+
+def test_editor_notes_stripped_across_pages_and_footers():
+    from spectakeoff.specs import strip_editor_notes
+
+    st = SectionState()
+    star = "*" * 70
+    p1 = "\n".join(["1.9.5 Warranty Tags", star, "NOTE: Tailoring for four copies.", star, star,
+                    "SECTION 01 78 00  Page 14"])
+    p2 = "\n".join(["NOTE: Use electronic copy for Army.", star,
+                    "At the time of installation, tag each warranted item with a durable tag.",
+                    star + ".", "The Engineer shall define sampling points.", star + ".",
+                    "623-4.3 Weather limitations. The seal shall not be applied in rain."])
+    t1, _ = strip_editor_notes(p1, st)
+    t2, dropped = strip_editor_notes(p2, st)
+    assert "Tailoring" not in t1 and "SECTION 01 78 00" in t1
+    assert "Use electronic copy" not in t2 and "Engineer shall define" not in t2
+    assert "tag each warranted item" in t2 and "Weather limitations" in t2 and dropped == 2
+
+
+def test_ufgs_submittal_register_items():
+    from spectakeoff.specs import extract_submittal_register
+
+    text = """      SD-03 Product Data
+          Backflow Prevention Assemblies; G, [_____]
+      SD-06 Test Reports
+          Test of Backflow Prevention Assemblies; G, [_____].
+      SD-10 Operation and Maintenance Data
+          Plumbing System; G, [_____]
+      SD-11 Closeout Submittals
+          Key Bitting
+]1.3   SHOP DRAWINGS
+  Submit detail drawings."""
+    st = SectionState("22 00 00", "PLUMBING")
+    items = extract_submittal_register(text, "x", 24, st, "", "m", None)
+    assert [(f.text, f.category) for f in items] == [
+        ("Test of Backflow Prevention Assemblies; G, [_____]", "Testing / Reports / Certification"),
+        ("Plumbing System; G, [_____]", "O&M / Manuals / Records"),
+        ("Key Bitting", "Other Closeout")]
+    assert all(f.section == "22 00 00" for f in items)
+
+
+def test_section_reference_after_line_break_is_not_a_heading():
+    st = detect_section("Submit the following in accordance with\nSection 01 33 00 SUBMITTAL PROCEDURES:",
+                        SectionState("23 05 93", "TAB"))
+    assert st.section == "23 05 93"
+    st = detect_section("text\n                 SECTION 23 05 93  Page 14", SectionState())
+    assert (st.section, st.title) == ("23 05 93", "")

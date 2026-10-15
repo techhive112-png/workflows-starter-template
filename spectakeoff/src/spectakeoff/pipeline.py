@@ -17,7 +17,8 @@ from spectakeoff.models import (CANDIDATE, DRAWING_TEXT, NONE, OCR_DRAWING, OCR_
 from spectakeoff.ocr import OcrUnavailable, detect_rotation, ocr_words, resolve_languages
 from spectakeoff.patterns import COUNT_NOTE, EQUIPMENT_TAG, NUMBER, find_tokens
 from spectakeoff.quality import LineVerdict
-from spectakeoff.specs import SectionState, detect_section, extract_requirements, norm
+from spectakeoff.specs import (SectionState, detect_section, extract_requirements, extract_submittal_register,
+                               norm, strip_editor_notes)
 from spectakeoff.vision import (BLANK, DRAWING_RASTER, PHOTO, SCAN_TEXT, DrawingScan, TextLine, classify_raster,
                                 draw_overlay, scan_drawing, to_gray)
 
@@ -75,10 +76,16 @@ def _maybe_translate(ctx: _Ctx, text: str) -> str:
 
 
 def _add_requirements(ctx: _Ctx, rec: PageRecord, text: str, method: str, conf: float | None) -> None:
+    text, dropped = strip_editor_notes(text, ctx.state)
+    if dropped:
+        rec.warnings.append(f"{dropped} line(s) of editor's notes (****** blocks) not treated as requirements")
     ctx.state = detect_section(text, ctx.state)
     rec.section, rec.section_title = ctx.state.section, ctx.state.title
     found, hits = extract_requirements(text, ctx.source, rec.page, ctx.state, rec.sha256, method, conf,
                                        ctx.cfg.min_span, ctx.cfg.max_span)
+    have = {f.text.casefold() for f in found}
+    found += [f for f in extract_submittal_register(text, ctx.source, rec.page, ctx.state, rec.sha256, method,
+                                                    conf) if f.text.casefold() not in have]
     if ctx.state.section:
         ctx.hits[ctx.state.section] += hits
     for f in found:

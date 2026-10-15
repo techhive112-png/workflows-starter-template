@@ -8,7 +8,7 @@ Katrai atrastajai vērtībai ir avota fails, lapa, apgabals lapā un oriģināla
 
 | Joma | 3.1 | 4.0 |
 |---|---|---|
-| Struktūra | viens 340 rindu skripts | Python pakotne (`src/spectakeoff`), CLI, 24 automātiskie testi |
+| Struktūra | viens 340 rindu skripts | Python pakotne (`src/spectakeoff`), CLI, 29 automātiskie testi |
 | Ievade | tikai PDF | PDF + attēli (PNG, JPG, TIFF ar vairākām lapām, WEBP, BMP) |
 | Lapas tipa noteikšana | nav | specifikācijas teksts / vektoru rasējums / rastra rasējums / skenēts teksts / foto / tukša |
 | Vektoru PDF rasējumi | apstrādāti kā teksts | precīzs teksts ar koordinātām tieši no PDF, bez OCR |
@@ -82,23 +82,45 @@ spectakeoff eval projekts.findings.json etalons.csv --report eval.json
 `schedule_row`). Tiek vērtētas tikai etalonā iekļautās lapas. Rezultāts attiecas tikai uz šo
 etalonu — tas nav garantija citiem dokumentiem.
 
-## Pārbaude ar FAA AC 150/5370-10H (727 lapas)
+## Precizitātes mērījumi (publiskas specifikācijas, 1047 lapas)
 
-Publiski pieejamais `150-5370-10H.pdf` (sha256 `5b573a09…bededef`):
+Katra izvilktā prasības rinda tika pārbaudīta un atzīmēta: pareiza / kļūdaina / apšaubāma
+(apšaubāmās netiek vērtētas). Etaloni: `benchmarks/*.csv`; atkārtot:
+`python benchmarks/run_benchmarks.py` (PDF tiek lejupielādēti no faa.gov un wbdg.org).
 
-| | 3.1 | 4.0 |
-|---|---|---|
-| Laiks | ~13 s | ~35 s (ietver tabulu analīzi) |
-| Prasību kandidāti | 213 | 246 |
-| Kandidāti bez sadaļas | n/a | 0 (44 sadaļas: `Section 90`, `Item P-501`…) |
-| Tabulu rindas ar daudzumu | — | 4 (lpp. 223) |
-| Excel pārbaudītās šūnas | kandidātu lapa | 22 908 (visas lapas) |
-| Atzīmētas iespējamās pretrunas | — | 4 (garantija 1 gads vs 4 gadi, Section 90) |
+| Kopa | Lapas | Statuss | Pirms labojumiem | Pēc labojumiem |
+|---|---|---|---|---|
+| FAA AC 150/5370-10H | 727 | izstrādes kopa | 75,8% (169 pareizas, 54 kļūdainas) | 170/170 pareizas, 0/57 kļūdainas |
+| UFGS 01 78 00, 23 05 93, 26 20 00 | 168 | pirmais neredzētais tests | **67,6%** (75 pareizas, 36 kļūdainas); atrastas 75 no 102 | 102/102 pareizas, 0/37 kļūdainas |
+| UFGS 22 00 00, 08 71 00 | 152 | **neredzēts, noteikumi iesaldēti** | **94,7%** (18 pareizas, 1 kļūdaina); atrastas 18 no 19 | 19/19, 0/1 |
 
-Šis dokuments ir tīrs teksta PDF — rasējumu/attēlu skenēšanu tas nepārbauda. Pirmā 4.0 palaišana
-atklāja 3 kļūdas (liela skaitļu tabula atpazīta kā rasējums, "Page Intentionally Blank" lapas
-nevajadzīgi OCR'otas, FAA sadaļu galvenes `Section 90 …` netika atpazītas); tās ir labotas un
-pārklātas ar regresijas testiem.
+Svarīgi lasot šos skaitļus:
+
+* Kolonna "Pēc labojumiem" pirmajām divām kopām ir **pēc noregulēšanas uz tām pašām lapām** — tā
+  nav neatkarīga precizitāte. Godīgākais skaitlis ir trešās kopas 94,7%, kas izmērīts pirms jebkādām
+  izmaiņām, uz dokumentiem, kurus noteikumi nebija redzējuši (mazs paraugs: 22 rindas).
+* Skaitļi "pirms labojumiem" ir pārrēķināti ar izlabotajiem marķējumiem.
+* Marķējumu veicis Claude (AI), nevis tāmētājs. Pārbaudes laikā 9 rindām paša marķējums tika
+  atklāti izlabots (piem. teikumi redaktora piezīmēs, kas sākotnēji atzīmēti kā pareizi).
+* Tiek mērīta izvilkto rindu precizitāte. Pilns pārklājums (recall) visās lapās nav mērīts — tikai
+  UFGS SD sarakstiem, salīdzinot ar rokām.
+
+Labotie kļūdu veidi (visiem ir regresijas testi):
+
+| Kļūda | Piemērs |
+|---|---|
+| Atslēgvārds vārda iekšienē (bija arī v3) | "air-en**training** admixtures" → "training" |
+| Atslēgvārds citā nozīmē | "bank certificates of deposit", "bid guarantee", "spare conduits", "one spare auxiliary contact" |
+| Noliegumi / skaidrojumi | "…shall **not** be interpreted as a basis for final acceptance", "makes **no guarantee**" |
+| Uzstādīšanas instrukcijas nav nodošanas dokuments | "…in (strict) accordance with the manufacturer's instructions" |
+| Redaktora piezīmes | UFGS `NOTE:` un FAA "Notes to the Engineer" blokos starp `****` rindām (arī pāri lapām, `****.`, `] ****`) |
+| Atsauces uz citām sadaļām | "…in accordance with ⏎ Section 01 33 00 SUBMITTAL PROCEDURES" vairs nemaina sadaļu |
+| Virsraksti kā prasības | "90-10 Construction warranty.", "20-10 Bid guarantee." |
+| UFGS iesniegumu saraksti netika lasīti | SD-06/07/09/10/11 vienumi (As-Built Drawings, O&M Manuals, testu atskaites) tagad ir prasības |
+| Citāts nebija burtisks | "[_____]" beigu iekava tika nogriezta |
+| Tabulas kā rasējumi, tukšas lapas OCR | FAA PWL tabula (93.–94. lpp.), "Page Intentionally Blank" |
+
+Ātrums: FAA 727 lapas ~32 s; UFGS 168 lapas ~33 s.
 
 ## Kā darbojas rasējumu skenēšana
 
@@ -124,9 +146,9 @@ pārklātas ar regresijas testiem.
 * Simboli bez teksta (metinājumu simboli, iekārtu ikonas) netiek atpazīti.
 * R9 (darbaspēka aprēķini) nav ieviests. R16 Division 23/26 pārbaude ir daļēja.
 * OCR pārliecība ir Tesseract vārdu pārliecība, nevis pareizības procents.
-* Prasību izvilkšana joprojām balstās uz atslēgvārdiem: izlases pārbaudē (10 rindas no FAA AC) ~7 bija
-  īstas iesniegšanas/closeout prasības, ~3 — kļūdaini trāpījumi (piem. "bank certificates of deposit").
-  Precīzu precision/recall var noteikt tikai ar `spectakeoff eval` un cilvēka pārbaudītu etalonu.
+* Prasību izvilkšana joprojām balstās uz noteikumiem (atslēgvārdi + teikuma struktūra), ne
+  valodas modeli: neparasti formulējumi var tikt palaisti garām. Jauniem dokumentu tipiem
+  (citas valstis, citas valodas) precizitāte jāmēra no jauna ar `spectakeoff eval`.
 * Tulkošana (`--translate`) nosūta tekstu ārējam pakalpojumam; konfidenciāliem dokumentiem
   neizmantot bez atļaujas.
 

@@ -1,0 +1,24 @@
+source,page,kind,label,reason,text
+UFGS_22_00_00.pdf,24,requirement,true_positive,,"Tests, Flushing and Disinfection"
+UFGS_22_00_00.pdf,24,requirement,true_positive,,Materials and Equipment
+UFGS_22_00_00.pdf,24,requirement,true_positive,,Bolts
+UFGS_22_00_00.pdf,24,requirement,true_positive,,"Plumbing System; G, [_____]"
+UFGS_22_00_00.pdf,25,requirement,true_positive,,"Where equipment is specified to conform to requirements of the ASME Boiler and Pressure Vessel Code, the design, fabrication, and installation must conform to the code and a certificate must be submitted for the equipment."
+UFGS_22_00_00.pdf,25,requirement,borderline,,These service organizations must be reasonably convenient to the equipment installation and able to render satisfactory service to the equipment on a regular and emergency basis during the warranty period of the contract.
+UFGS_22_00_00.pdf,27,requirement,borderline,,Instructors must be thoroughly familiar with all parts of the installation and must be trained in operating theory as well as practical operation and maintenance work.
+UFGS_22_00_00.pdf,27,requirement,true_positive,,Submit Plumbing System Operation and Maintenance Data in accordance with Section 01 78 23 OPERATION AND MAINTENANCE DATA.
+UFGS_22_00_00.pdf,31,requirement,true_positive,,Submit written certification by the bolt manufacturer that the bolts furnished comply with the specified requirements.
+UFGS_22_00_00.pdf,41,requirement,true_positive,,Furnish urinal manufacturer's certification of conformance.
+UFGS_22_00_00.pdf,42,requirement,true_positive,,Manufacturer must provide an operating manual and on-site training for the proper care and maintenance of the urinal.
+UFGS_22_00_00.pdf,65,requirement,true_positive,,"Each variable speed drive must be run-tested by the manufacturer for rated performance, and the manufacturer must furnish written performance certification."
+UFGS_22_00_00.pdf,67,requirement,true_positive,,A display of the ASME seal on the receiver or a certified test report from an approved independent testing laboratory indicating conformance to the ASME Code must be provided.
+UFGS_22_00_00.pdf,76,requirement,false_positive,"installation instruction, not a deliverable",Copper press connections must be made in strict accordance with the manufacturer's installation instructions for manufactured rated size.
+UFGS_22_00_00.pdf,94,requirement,borderline,,"Manufacturer's standard factory painting systems may be provided subject to certification that the factory painting system applied will withstand 125 hours in a salt-spray fog test, except that equipment located outdoors must withstand 500 hours in a salt-spray fog test."
+UFGS_22_00_00.pdf,95,requirement,true_positive,,"Submit test reports in booklet form showing all field tests performed to adjust each component and all field tests performed to prove compliance with the specified performance criteria, completion and testing of the installed system."
+UFGS_22_00_00.pdf,95,requirement,true_positive,,Each test report must indicate the final position of controls.
+UFGS_22_00_00.pdf,95,requirement,true_positive,,Certification of proper operation must be submitted and must be as accomplished in accordance with state regulations by an individual certified by the state to perform such tests.
+UFGS_08_71_00.pdf,8,requirement,true_positive,,"Hardware Schedule Items, Data Package 1; G, [_____]"
+UFGS_08_71_00.pdf,8,requirement,true_positive,,Key Bitting
+UFGS_08_71_00.pdf,24,requirement,true_positive,,Provide manufacturer's 10 year warranty.
+UFGS_08_71_00.pdf,28,requirement,true_positive,,"Provide special tools, such as spanner and socket wrenches and dogging keys, as required to service and adjust hardware items."
+UFGS_22_00_00.pdf,24,requirement,true_positive,SD-06 item missed by the frozen rules,"Test of Backflow Prevention Assemblies; G, [_____]"
