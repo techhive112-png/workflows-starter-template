@@ -20,12 +20,12 @@ CLOSEOUT_TERMS = re.compile(
     r"test reports?|inspection reports?|final reports?|instruction manuals?|replacement parts?|"
     r"maintenance agreement|maintenance materials?|operation manual|service visits?|submittals?|deliverables?|"
     r"certifications?|certificates?|manufacturer(?:'s)? instructions|spare equipment|extra stock|maintenance data|"
-    r"guarantee|demonstration",
+    r"guarantee|demonstration of (?:the )?(?:system|equipment)s?",
     re.I,
 )
 OBLIGATION = re.compile(
     r"\b(shall|must|required to|will provide|provide|furnish|supply|submit|deliver|include|turn over|turnover|"
-    r"maintain|warrant(?:s|y|ed)|is to be submitted|are to be submitted)\b",
+    r"maintain|warrants|warranted|guarantees?d?|is to be submitted|are to be submitted)\b",
     re.I,
 )
 _NUM_WORDS = "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|ninety|hundred"
@@ -47,6 +47,8 @@ SECTION_PATTERNS = [
     re.compile(r"^\s*(\d{2}\s\d{2}\s\d{2}(?:\.\d{2})?)\s+([A-Z][A-Z0-9 ,&/()'-]{3,140})\s*$"),
     re.compile(r"^\s*ITEM\s+([A-Z]{1,2}-\d{2,4}[A-Z]?)\s*[-–:.]?\s*(.{3,140}?)\s*$", re.I),
     re.compile(r"^\s*SECTION\s+(\d{1,4})\s*[-–:.]\s*(.{3,140}?)\s*$", re.I),
+    # "Section 50 Control of Work" (FAA AC 150/5370 style): keyword + number + capitalised title
+    re.compile(r"^\s*(?:SECTION|Section)\s+(\d{1,4})\s+([A-Z][A-Za-z0-9 ,&/()'-]{2,120}?)\s*$"),
 ]
 TOC_LINE = re.compile(r"\.{3,}\s*\d+\s*$|\s{2,}\d{1,4}\s*$")
 CAT_PATTERNS = [

@@ -177,3 +177,28 @@ def test_scanned_spec_page_ocr_with_rotation(tmp_path, rotate):
     assert [f["text"] for f in found] == SCANNED[3:]
     assert all(f["section"] == "26 05 00" and f["division"] == "26" for f in found)
     assert [(f["value"], f["unit"]) for f in found] == [("two", "COPIES"), ("10", "PERCENT"), ("one", "YEAR")]
+
+
+def test_ruled_numeric_table_and_blank_page_are_not_drawings(tmp_path):
+    """Regression from FAA AC 150/5370-10H: PWL table pages and 'Page Intentionally Blank'."""
+    doc = pymupdf.open()
+    p = doc.new_page()
+    p.insert_text((50, 40), "Table 1. Table for Estimating Percent of Lot Within Limits (PWL)", fontsize=9)
+    x0, y0, cw, rh, cols, nrows = 50, 60, 55, 14, 9, 45
+    for r in range(nrows):
+        for c in range(cols):
+            p.insert_text((x0 + c * cw + 3, y0 + r * rh + 10), f"{1.1 + r * 0.01 + c * 0.1:.4f}", fontsize=7)
+        p.draw_line((x0, y0 + r * rh), (x0 + cols * cw, y0 + r * rh))
+        for c in range(cols + 1):
+            p.draw_line((x0 + c * cw, y0 + r * rh), (x0 + c * cw, y0 + (r + 1) * rh))
+    p.draw_line((x0, y0 + nrows * rh), (x0 + cols * cw, y0 + nrows * rh))
+    p = doc.new_page()
+    p.insert_text((200, 400), "Page Intentionally Blank", fontsize=12)
+    pdf = tmp_path / "t.pdf"
+    doc.save(pdf)
+    out = tmp_path / "t.xlsx"
+    assert main([str(pdf), "-o", str(out), "--no-overlays"]) == 0
+    found = json.loads(out.with_suffix(".findings.json").read_text())["findings"]
+    assert [f for f in found if f["kind"] in ("drawing_text", "schedule_row")] == []
+    kinds = [r[2] for r in load_workbook(out)["Page Audit"].iter_rows(min_row=2, values_only=True)]
+    assert kinds == ["Spec text", "Spec text"]

@@ -8,7 +8,7 @@ Katrai atrastajai vērtībai ir avota fails, lapa, apgabals lapā un oriģināla
 
 | Joma | 3.1 | 4.0 |
 |---|---|---|
-| Struktūra | viens 340 rindu skripts | Python pakotne (`src/spectakeoff`), CLI, 22 automātiskie testi |
+| Struktūra | viens 340 rindu skripts | Python pakotne (`src/spectakeoff`), CLI, 24 automātiskie testi |
 | Ievade | tikai PDF | PDF + attēli (PNG, JPG, TIFF ar vairākām lapām, WEBP, BMP) |
 | Lapas tipa noteikšana | nav | specifikācijas teksts / vektoru rasējums / rastra rasējums / skenēts teksts / foto / tukša |
 | Vektoru PDF rasējumi | apstrādāti kā teksts | precīzs teksts ar koordinātām tieši no PDF, bez OCR |
@@ -82,6 +82,24 @@ spectakeoff eval projekts.findings.json etalons.csv --report eval.json
 `schedule_row`). Tiek vērtētas tikai etalonā iekļautās lapas. Rezultāts attiecas tikai uz šo
 etalonu — tas nav garantija citiem dokumentiem.
 
+## Pārbaude ar FAA AC 150/5370-10H (727 lapas)
+
+Publiski pieejamais `150-5370-10H.pdf` (sha256 `5b573a09…bededef`):
+
+| | 3.1 | 4.0 |
+|---|---|---|
+| Laiks | ~13 s | ~35 s (ietver tabulu analīzi) |
+| Prasību kandidāti | 213 | 246 |
+| Kandidāti bez sadaļas | n/a | 0 (44 sadaļas: `Section 90`, `Item P-501`…) |
+| Tabulu rindas ar daudzumu | — | 4 (lpp. 223) |
+| Excel pārbaudītās šūnas | kandidātu lapa | 22 908 (visas lapas) |
+| Atzīmētas iespējamās pretrunas | — | 4 (garantija 1 gads vs 4 gadi, Section 90) |
+
+Šis dokuments ir tīrs teksta PDF — rasējumu/attēlu skenēšanu tas nepārbauda. Pirmā 4.0 palaišana
+atklāja 3 kļūdas (liela skaitļu tabula atpazīta kā rasējums, "Page Intentionally Blank" lapas
+nevajadzīgi OCR'otas, FAA sadaļu galvenes `Section 90 …` netika atpazītas); tās ir labotas un
+pārklātas ar regresijas testiem.
+
 ## Kā darbojas rasējumu skenēšana
 
 1. Lapa tiek klasificēta (balto pikseļu daļa, piesātinājums, garo līniju attiecība pret tinti).
@@ -106,7 +124,9 @@ etalonu — tas nav garantija citiem dokumentiem.
 * Simboli bez teksta (metinājumu simboli, iekārtu ikonas) netiek atpazīti.
 * R9 (darbaspēka aprēķini) nav ieviests. R16 Division 23/26 pārbaude ir daļēja.
 * OCR pārliecība ir Tesseract vārdu pārliecība, nevis pareizības procents.
-* Nav veikta pārbaude ar 727 lapu `150-5370-10H.pdf` šajā vidē (fails nebija pieejams).
+* Prasību izvilkšana joprojām balstās uz atslēgvārdiem: izlases pārbaudē (10 rindas no FAA AC) ~7 bija
+  īstas iesniegšanas/closeout prasības, ~3 — kļūdaini trāpījumi (piem. "bank certificates of deposit").
+  Precīzu precision/recall var noteikt tikai ar `spectakeoff eval` un cilvēka pārbaudītu etalonu.
 * Tulkošana (`--translate`) nosūta tekstu ārējam pakalpojumam; konfidenciāliem dokumentiem
   neizmantot bez atļaujas.
 

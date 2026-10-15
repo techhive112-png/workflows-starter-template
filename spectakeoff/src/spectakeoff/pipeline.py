@@ -122,12 +122,17 @@ def _add_lines(ctx: _Ctx, rec: PageRecord, lines: list[TextLine], method: str) -
             rec.findings += 1
 
 
-def _add_schedules(ctx: _Ctx, rec: PageRecord, page) -> None:
+def _find_tables(rec: PageRecord, page) -> list:
     try:
-        tables = page.find_tables().tables
+        return page.find_tables().tables
     except Exception as exc:  # table finder is best effort
         rec.warn(f"Table detection failed: {type(exc).__name__}")
-        return
+        return []
+
+
+def _add_schedules(ctx: _Ctx, rec: PageRecord, tables: list) -> None:
+    """Keep schedule-like tables (with a quantity or tag column); others are only counted."""
+    skipped = 0
     for ti, tb in enumerate(tables, 1):
         rows = tb.extract()
         if len(rows) < 2 or max(len(r) for r in rows) < 2:
@@ -135,6 +140,10 @@ def _add_schedules(ctx: _Ctx, rec: PageRecord, page) -> None:
         header = [norm(h or f"col{i + 1}") for i, h in enumerate(rows[0])]
         qcol = next((i for i, h in enumerate(header) if QTY_HEADER.match(h)), None)
         tcol = next((i for i, h in enumerate(header) if TAG_HEADER.match(h)), None)
+        has_tags = any(t.kind == EQUIPMENT_TAG for r in rows[1:] for c in r for t in find_tokens(norm(c or "")))
+        if qcol is None and tcol is None and not has_tags:
+            skipped += 1
+            continue
         x0, y0, x1, y1 = tb.bbox
         for ri, row in enumerate(rows[1:], 1):
             cells = [norm(c or "") for c in row]
@@ -152,6 +161,8 @@ def _add_schedules(ctx: _Ctx, rec: PageRecord, page) -> None:
                 f.flag("Schedule quantity — verify against the drawing before use")
             ctx.result.findings.append(f)
             rec.findings += 1
+    if skipped:
+        rec.warnings.append(f"{skipped} table(s) without quantity/tag column not extracted as schedules")
 
 
 def _vector_lines(page) -> list[TextLine]:
@@ -294,8 +305,18 @@ def _process_pdf_page(ctx: _Ctx, page, pno: int) -> PageRecord:
         n_paths = 0
     vlines = _vector_lines(page)
     words_per_line = (sum(len(ln.text.split()) for ln in vlines) / len(vlines)) if vlines else 0
+    tables = _find_tables(rec, page) if n_paths >= 8 else []
     is_vector_drawing = n_paths >= 300 and bool(vlines) and words_per_line < 5
-    if len(cleaned) < ctx.cfg.ocr_min_chars and not is_vector_drawing:
+    if is_vector_drawing and tables:
+        # a big ruled table (many short numeric cells) is not a drawing
+        in_tab = sum(len(ln.text) for ln in vlines if any(
+            t.bbox[0] <= (ln.bbox.x0 + ln.bbox.x1) / 2 <= t.bbox[2] and t.bbox[1] <= (ln.bbox.y0 + ln.bbox.y1) / 2
+            <= t.bbox[3] for t in tables))
+        is_vector_drawing = in_tab < 0.5 * max(1, sum(len(ln.text) for ln in vlines))
+    # Render + OCR only when the text layer may be missing content: no text at all, embedded
+    # images, or many paths (text converted to outlines). A short text page stays text.
+    needs_raster = not cleaned or img_cover >= 0.1 or n_paths >= 50
+    if len(cleaned) < ctx.cfg.ocr_min_chars and needs_raster and not is_vector_drawing:
         z = ctx.cfg.dpi / 72.0
         z = min(z, (MAX_RENDER_PIXELS / area) ** 0.5)
         pix = page.get_pixmap(matrix=pymupdf.Matrix(z, z), alpha=False)
@@ -322,8 +343,8 @@ def _process_pdf_page(ctx: _Ctx, page, pno: int) -> PageRecord:
         _add_requirements(ctx, rec, text, PDF_TEXT, None)
     if img_cover >= 0.1:
         rec.warn(f"Embedded image(s) cover {img_cover:.0%} of the page — check for content not in the text layer")
-    if ctx.cfg.tables and n_paths >= 8:
-        _add_schedules(ctx, rec, page)
+    if ctx.cfg.tables and tables:
+        _add_schedules(ctx, rec, tables)
     return rec
 
 

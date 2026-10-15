@@ -91,3 +91,13 @@ def test_requirements_extracted_with_evidence_and_flags():
     assert f.text == "Provide one spare filter set for each air handling unit."
     assert (f.page, f.section, f.division, f.category) == (3, "23 05 00", "23", "Spare Part / Extra Material")
     assert f.value == "one" and f.unit == "SET"
+
+
+def test_faa_style_headings_and_heading_only_spans():
+    st = SectionState()
+    assert detect_section("12/21/2018\nAC 150/5370-10H\nSection 90 Measurement and Payment\n", st).section == "90"
+    found, _ = extract_requirements("90-10 Construction warranty.", "x", 1, SectionState("90", "t"), "", "m", None)
+    assert found == []
+    found, _ = extract_requirements("The RPR must witness this demonstration and approve the lift thickness.",
+                                    "x", 1, SectionState("50", "t"), "", "m", None)
+    assert found == []
