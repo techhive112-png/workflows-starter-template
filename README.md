@@ -16,6 +16,33 @@ Runs on Cloudflare Workers, using Workers AI, Workflows and Durable Objects.
 | **Per-worker on/off** | Switch off any single worker. |
 | **Audit log** | Every change, order, result and decision is recorded with a timestamp. |
 
+## Worker skills
+
+Give each worker only the skills it needs (all off by default):
+
+| Skill | What it does | Needs |
+| --- | --- | --- |
+| Read web pages | Reads links you give it | nothing |
+| Search the web | Finds information itself | `BROWSERLESS_TOKEN` |
+| Use a browser | Real browser for JavaScript-heavy sites | `BROWSERLESS_TOKEN` |
+| Click & type on sites | Clicks and fills fields before reading | `BROWSERLESS_TOKEN` |
+| Code on GitHub | Reads code in your allowed repos, proposes fixes | `GITHUB_TOKEN` |
+
+Each worker also has a **brain**: *General* (Llama 3.3 70B) for writing and research, or *Coder* (Qwen 2.5 Coder 32B) for programs, bugs and algorithms. Both are free Workers AI models.
+
+Safety rules for skills:
+- The browser runs a fixed script. The AI only supplies a URL and simple steps, never code.
+- Pages, search results and files are treated as data, never as orders.
+- Blocked words are also checked on every tool call.
+- Code changes are **never** written directly. The worker prepares a proposal, you see every file, and only **Approve & open PR** creates a pull request. Only repos you list under *Your rules* can be touched.
+
+### Setting up the optional secrets
+
+In the Cloudflare dashboard open your Worker → **Settings → Variables and Secrets → Add**, type **Secret**:
+
+- `BROWSERLESS_TOKEN`: the API token from your [browserless.io](https://www.browserless.io) account (there is a free plan).
+- `GITHUB_TOKEN`: a [fine-grained token](https://github.com/settings/personal-access-tokens/new) limited to the repos you want, with **Contents: Read and write** and **Pull requests: Read and write**.
+
 ## How a task runs
 
 ```

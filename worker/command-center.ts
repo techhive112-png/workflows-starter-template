@@ -1,9 +1,12 @@
 import { DurableObject } from "cloudflare:workers";
+import type { CodeProposal } from "./github";
 import {
 	type AgentWorker,
 	type Settings,
 	DEFAULT_SETTINGS,
 	cleanList,
+	cleanSkills,
+	normalizeRepo,
 } from "./rules";
 
 export type TaskStatus =
@@ -31,8 +34,20 @@ export interface Task {
 	status: TaskStatus;
 	output: string | null;
 	note: string | null;
+	/** What the worker did along the way (pages read, searches, ...) */
+	steps: TaskStep[];
+	/** A code change waiting for the owner's approval */
+	proposal: CodeProposal | null;
+	/** Link to the result, e.g. the pull request that was opened */
+	resultUrl: string | null;
 	createdAt: number;
 	updatedAt: number;
+}
+
+export interface TaskStep {
+	at: number;
+	title: string;
+	detail: string;
 }
 
 export type AuditEntry = {
@@ -54,6 +69,8 @@ export interface CommandCenterState {
 	workers: AgentWorker[];
 	tasks: Task[];
 	audit: AuditEntry[];
+	/** Which optional secrets are configured (never the values) */
+	capabilities: { browser: boolean; github: boolean };
 }
 
 export interface WorkerInput {
@@ -62,6 +79,8 @@ export interface WorkerInput {
 	rules?: unknown;
 	enabled?: unknown;
 	requireApproval?: unknown;
+	skills?: unknown;
+	model?: unknown;
 }
 
 const TASK_LIMIT = 100;
@@ -113,6 +132,23 @@ export class CommandCenterDO extends DurableObject<Env> {
 			);
 			CREATE TABLE IF NOT EXISTS tickets (ticket TEXT PRIMARY KEY, expires_at INTEGER NOT NULL);
 		`);
+
+		// Columns added after the first release
+		this.addColumn("workers", "skills", "TEXT NOT NULL DEFAULT '{}'");
+		this.addColumn("workers", "model", "TEXT NOT NULL DEFAULT 'general'");
+		this.addColumn("tasks", "steps", "TEXT NOT NULL DEFAULT '[]'");
+		this.addColumn("tasks", "proposal", "TEXT");
+		this.addColumn("tasks", "result_url", "TEXT");
+	}
+
+	private addColumn(table: string, column: string, definition: string) {
+		const exists = this.sql
+			.exec<{ name: string }>(`PRAGMA table_info(${table})`)
+			.toArray()
+			.some((c) => c.name === column);
+		if (!exists) {
+			this.sql.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+		}
 	}
 
 	// ---------------------------------------------------------------------
@@ -190,6 +226,10 @@ export class CommandCenterDO extends DurableObject<Env> {
 					AUDIT_LIMIT,
 				)
 				.toArray(),
+			capabilities: {
+				browser: Boolean(this.env.BROWSERLESS_TOKEN),
+				github: Boolean(this.env.GITHUB_TOKEN),
+			},
 		};
 	}
 
@@ -254,6 +294,16 @@ export class CommandCenterDO extends DurableObject<Env> {
 			next.blockedTerms = cleanList(patch.blockedTerms, 200);
 			changed.push("blocked terms");
 		}
+		if (patch.githubRepos !== undefined) {
+			next.githubRepos = [
+				...new Set(
+					cleanList(patch.githubRepos)
+						.map(normalizeRepo)
+						.filter((r): r is string => r !== null),
+				),
+			];
+			changed.push("GitHub repos");
+		}
 
 		for (const [key, value] of Object.entries(next)) {
 			this.sql.exec(
@@ -279,6 +329,8 @@ export class CommandCenterDO extends DurableObject<Env> {
 			rules: cleanList(input.rules),
 			enabled: input.enabled !== false,
 			requireApproval: input.requireApproval !== false,
+			skills: cleanSkills(input.skills),
+			model: input.model === "coder" ? "coder" : "general",
 			createdAt: Date.now(),
 		};
 		this.saveWorker(worker);
@@ -300,6 +352,10 @@ export class CommandCenterDO extends DurableObject<Env> {
 		if (typeof input.enabled === "boolean") worker.enabled = input.enabled;
 		if (typeof input.requireApproval === "boolean") {
 			worker.requireApproval = input.requireApproval;
+		}
+		if (input.skills !== undefined) worker.skills = cleanSkills(input.skills);
+		if (input.model === "coder" || input.model === "general") {
+			worker.model = input.model;
 		}
 
 		this.saveWorker(worker);
@@ -329,6 +385,9 @@ export class CommandCenterDO extends DurableObject<Env> {
 			status: "queued",
 			output: null,
 			note: null,
+			steps: [],
+			proposal: null,
+			resultUrl: null,
 			createdAt: now,
 			updatedAt: now,
 		};
@@ -363,6 +422,8 @@ export class CommandCenterDO extends DurableObject<Env> {
 			status?: TaskStatus;
 			output?: string | null;
 			note?: string | null;
+			proposal?: CodeProposal | null;
+			resultUrl?: string | null;
 		},
 		actor = "system",
 	): Task | null {
@@ -375,13 +436,17 @@ export class CommandCenterDO extends DurableObject<Env> {
 			...(patch.status ? { status: patch.status } : {}),
 			...(patch.output !== undefined ? { output: patch.output } : {}),
 			...(patch.note !== undefined ? { note: patch.note } : {}),
+			...(patch.proposal !== undefined ? { proposal: patch.proposal } : {}),
+			...(patch.resultUrl !== undefined ? { resultUrl: patch.resultUrl } : {}),
 			updatedAt: Date.now(),
 		};
 		this.sql.exec(
-			"UPDATE tasks SET status = ?, output = ?, note = ?, updated_at = ? WHERE id = ?",
+			"UPDATE tasks SET status = ?, output = ?, note = ?, proposal = ?, result_url = ?, updated_at = ? WHERE id = ?",
 			next.status,
 			next.output,
 			next.note,
+			next.proposal ? JSON.stringify(next.proposal) : null,
+			next.resultUrl,
 			next.updatedAt,
 			id,
 		);
@@ -394,6 +459,27 @@ export class CommandCenterDO extends DurableObject<Env> {
 		}
 		this.broadcast();
 		return next;
+	}
+
+	/** Record one thing the worker did. The index makes retries harmless. */
+	recordStep(id: string, index: number, step: Omit<TaskStep, "at">): void {
+		const task = this.getTask(id);
+		if (!task || task.steps.length > index) return;
+		const steps = [
+			...task.steps,
+			{
+				at: Date.now(),
+				title: step.title.slice(0, 200),
+				detail: step.detail.slice(0, 2000),
+			},
+		];
+		this.sql.exec(
+			"UPDATE tasks SET steps = ?, updated_at = ? WHERE id = ?",
+			JSON.stringify(steps),
+			Date.now(),
+			id,
+		);
+		this.broadcast();
 	}
 
 	clearFinishedTasks(): void {
@@ -425,17 +511,20 @@ export class CommandCenterDO extends DurableObject<Env> {
 
 	private saveWorker(w: AgentWorker): void {
 		this.sql.exec(
-			`INSERT INTO workers (id, name, role, rules, enabled, require_approval, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO workers (id, name, role, rules, enabled, require_approval, skills, model, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(id) DO UPDATE SET name = excluded.name, role = excluded.role,
 			   rules = excluded.rules, enabled = excluded.enabled,
-			   require_approval = excluded.require_approval`,
+			   require_approval = excluded.require_approval,
+			   skills = excluded.skills, model = excluded.model`,
 			w.id,
 			w.name,
 			w.role,
 			JSON.stringify(w.rules),
 			w.enabled ? 1 : 0,
 			w.requireApproval ? 1 : 0,
+			JSON.stringify(w.skills),
+			w.model,
 			w.createdAt,
 		);
 	}
@@ -473,6 +562,8 @@ type WorkerRow = {
 	rules: string;
 	enabled: number;
 	require_approval: number;
+	skills: string;
+	model: string;
 	created_at: number;
 };
 
@@ -484,6 +575,9 @@ type TaskRow = {
 	status: TaskStatus;
 	output: string | null;
 	note: string | null;
+	steps: string;
+	proposal: string | null;
+	result_url: string | null;
 	created_at: number;
 	updated_at: number;
 };
@@ -496,6 +590,8 @@ function toWorker(r: WorkerRow): AgentWorker {
 		rules: JSON.parse(r.rules),
 		enabled: r.enabled === 1,
 		requireApproval: r.require_approval === 1,
+		skills: cleanSkills(JSON.parse(r.skills)),
+		model: r.model === "coder" ? "coder" : "general",
 		createdAt: r.created_at,
 	};
 }
@@ -509,6 +605,9 @@ function toTask(r: TaskRow): Task {
 		status: r.status,
 		output: r.output,
 		note: r.note,
+		steps: JSON.parse(r.steps),
+		proposal: r.proposal ? JSON.parse(r.proposal) : null,
+		resultUrl: r.result_url,
 		createdAt: r.created_at,
 		updatedAt: r.updated_at,
 	};

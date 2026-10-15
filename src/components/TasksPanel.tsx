@@ -169,10 +169,59 @@ function TaskItem({
 			<p className="text-sm text-neutral-700 dark:text-neutral-300 mt-2 whitespace-pre-wrap">
 				{task.instruction}
 			</p>
+			{task.steps.length > 0 && (
+				<details className="mt-2 text-xs" open={task.status === "running"}>
+					<summary className="cursor-pointer text-neutral-500 dark:text-neutral-400">
+						What it did ({task.steps.length} step
+						{task.steps.length === 1 ? "" : "s"})
+					</summary>
+					<ol className="mt-1 space-y-1.5 pl-1">
+						{task.steps.map((s, i) => (
+							<li key={i}>
+								<span className="font-medium text-neutral-700 dark:text-neutral-200">
+									{i + 1}. {s.title}
+								</span>
+								<div className="text-neutral-500 dark:text-neutral-400 whitespace-pre-wrap break-words line-clamp-3">
+									{s.detail}
+								</div>
+							</li>
+						))}
+					</ol>
+				</details>
+			)}
 			{task.output && (
 				<div className="mt-2 rounded-md bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 p-2.5 text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap max-h-80 overflow-auto">
 					{task.output}
 				</div>
+			)}
+			{task.proposal && (
+				<div className="mt-2 rounded-md border border-violet-300/60 dark:border-violet-500/30 bg-violet-50/50 dark:bg-violet-500/5 p-2.5 text-xs">
+					<p className="font-medium text-violet-900 dark:text-violet-200">
+						Code change for {task.proposal.repo}
+					</p>
+					{task.proposal.files.map((f) => (
+						<details key={f.path} className="mt-1">
+							<summary className="cursor-pointer font-mono text-neutral-700 dark:text-neutral-300">
+								{f.delete ? "🗑 delete" : "✏️"} {f.path}
+							</summary>
+							{!f.delete && (
+								<pre className="mt-1 max-h-72 overflow-auto rounded bg-neutral-900 text-neutral-100 p-2 text-[11px] leading-snug">
+									{f.content}
+								</pre>
+							)}
+						</details>
+					))}
+				</div>
+			)}
+			{task.resultUrl && (
+				<a
+					href={task.resultUrl}
+					target="_blank"
+					rel="noopener noreferrer"
+					className="mt-2 inline-block text-sm font-medium text-violet-700 dark:text-violet-300 underline"
+				>
+					Open pull request →
+				</a>
 			)}
 			{task.note && (
 				<p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
@@ -190,7 +239,7 @@ function TaskItem({
 					/>
 					<div className="flex gap-2 shrink-0">
 						<Button onClick={() => onDecide(task.id, true, note)}>
-							Approve
+							{task.proposal ? "Approve & open PR" : "Approve"}
 						</Button>
 						<Button
 							variant="secondary"

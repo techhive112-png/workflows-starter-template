@@ -71,7 +71,7 @@ function Dashboard({
 		);
 	}
 
-	const { settings, workers, tasks, audit } = state;
+	const { settings, workers, tasks, audit, capabilities } = state;
 	const pending = tasks.filter((t) => t.status === "awaiting_approval").length;
 
 	return (
@@ -139,6 +139,7 @@ function Dashboard({
 					/>
 					<WorkersPanel
 						workers={workers}
+						capabilities={capabilities}
 						onCreate={(draft) => call("/api/workers", "POST", draft)}
 						onUpdate={(id, patch) => call(`/api/workers/${id}`, "PUT", patch)}
 						onDelete={(id) => run(`/api/workers/${id}`, "DELETE")}

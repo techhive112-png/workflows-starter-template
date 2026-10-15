@@ -5,8 +5,13 @@ import {
 	buildSystemPrompt,
 	findViolations,
 	DEFAULT_SETTINGS,
+	NO_SKILLS,
+	normalizeRepo,
 } from "../worker/rules";
 import { OWNER_CENTER } from "../worker/agent-workflow";
+import { parseAction } from "../worker/agent";
+import { checkProposal } from "../worker/github";
+import { htmlToText } from "../worker/web";
 
 // Must match the OWNER_TOKEN binding in vitest.config.ts
 const OWNER_TOKEN = "test-owner-token-1234567890";
@@ -81,6 +86,8 @@ describe("rules", () => {
 				rules: ["Cite sources."],
 				enabled: true,
 				requireApproval: true,
+				skills: NO_SKILLS,
+				model: "general",
 				createdAt: 0,
 			},
 		);
@@ -189,5 +196,166 @@ describe("AgentTaskWorkflow failures", () => {
 		const done = await center().getTask(task.id);
 		expect(done?.status).toBe("failed");
 		expect(done?.note).toContain("model offline");
+	});
+});
+
+describe("tools", () => {
+	it("reads tool calls even when the model wraps them in prose or fences", () => {
+		expect(
+			parseAction('Sure! {"tool": "web_search", "query": "cats"}'),
+		).toEqual({
+			tool: "web_search",
+			args: { query: "cats" },
+		});
+		expect(
+			parseAction('```json\n{"tool": "final", "answer": "Done"}\n```'),
+		).toEqual({
+			tool: "final",
+			answer: "Done",
+		});
+		expect(parseAction("just text")).toBeNull();
+	});
+
+	it("only allows repos the owner listed", () => {
+		const change = {
+			repo: "someone/else",
+			title: "x",
+			files: [{ path: "a.txt", content: "hi" }],
+		};
+		expect(() => checkProposal(change, ["me/app"])).toThrow(/not allowed/);
+		expect(() =>
+			checkProposal(
+				{ ...change, repo: "me/app", files: [{ path: "../x", content: "" }] },
+				["me/app"],
+			),
+		).toThrow(/Invalid path/);
+		expect(
+			checkProposal({ ...change, repo: "https://github.com/Me/App" }, [
+				"me/app",
+			]).repo,
+		).toBe("me/app");
+	});
+
+	it("normalises repo names and strips HTML", () => {
+		expect(normalizeRepo("https://github.com/Owner/Repo.git")).toBe(
+			"owner/repo",
+		);
+		expect(normalizeRepo("not a repo")).toBeNull();
+		expect(htmlToText("<p>Hello <b>you</b></p><script>bad()</script>")).toBe(
+			"Hello you",
+		);
+	});
+});
+
+describe("workers with skills", () => {
+	it("uses a tool, logs it, and returns the final answer", async () => {
+		const worker = await center().createWorker({
+			name: "Reader",
+			requireApproval: false,
+			skills: { readPages: true },
+		});
+		const task = await center().createTask(
+			worker.id,
+			"What is on example.com?",
+		);
+
+		await using instance = await introspectWorkflowInstance(
+			env.AGENT_TASK,
+			task.id,
+		);
+		await instance.modify(async (m) => {
+			await m.mockStepResult(
+				{ name: "think 1" },
+				'{"tool": "read_page", "url": "https://example.com"}',
+			);
+			await m.mockStepResult(
+				{ name: "tool 1" },
+				"Page: https://example.com\n\nExample Domain",
+			);
+			await m.mockStepResult(
+				{ name: "think 2" },
+				'{"tool": "final", "answer": "It says Example Domain."}',
+			);
+		});
+		await env.AGENT_TASK.create({ id: task.id, params: { taskId: task.id } });
+		await instance.waitForStatus("complete");
+
+		const done = await center().getTask(task.id);
+		expect(done?.status).toBe("completed");
+		expect(done?.output).toBe("It says Example Domain.");
+		expect(done?.steps[0].title).toBe("Read page https://example.com");
+	});
+
+	it("never changes code without approval, then opens a pull request", async () => {
+		await center().updateSettings({ githubRepos: ["me/app"] });
+		const worker = await center().createWorker({
+			name: "Coder",
+			requireApproval: false, // code changes still need approval
+			model: "coder",
+			skills: { github: true },
+		});
+		const task = await center().createTask(worker.id, "Fix the typo in README");
+
+		await using instance = await introspectWorkflowInstance(
+			env.AGENT_TASK,
+			task.id,
+		);
+		await instance.modify(async (m) => {
+			await m.mockStepResult(
+				{ name: "think 1" },
+				JSON.stringify({
+					tool: "propose_code_change",
+					repo: "me/app",
+					title: "Fix typo",
+					description: "Fixes a typo",
+					files: [{ path: "README.md", content: "# Hello" }],
+				}),
+			);
+			await m.mockEvent({
+				type: "owner-decision",
+				payload: { approved: true },
+			});
+			await m.mockStepResult(
+				{ name: "open pull request" },
+				"https://github.com/me/app/pull/1",
+			);
+		});
+		await env.AGENT_TASK.create({ id: task.id, params: { taskId: task.id } });
+		await instance.waitForStatus("complete");
+
+		const done = await center().getTask(task.id);
+		expect(done?.status).toBe("approved");
+		expect(done?.proposal?.files[0].path).toBe("README.md");
+		expect(done?.resultUrl).toBe("https://github.com/me/app/pull/1");
+	});
+
+	it("refuses tools the worker was not given", async () => {
+		const worker = await center().createWorker({
+			name: "Limited",
+			requireApproval: false,
+			skills: { readPages: true },
+		});
+		const task = await center().createTask(worker.id, "Search for news");
+
+		await using instance = await introspectWorkflowInstance(
+			env.AGENT_TASK,
+			task.id,
+		);
+		await instance.modify(async (m) => {
+			await m.mockStepResult(
+				{ name: "think 1" },
+				'{"tool": "web_search", "query": "news"}',
+			);
+			await m.mockStepResult(
+				{ name: "think 2" },
+				'{"tool": "final", "answer": "I cannot search."}',
+			);
+		});
+		await env.AGENT_TASK.create({ id: task.id, params: { taskId: task.id } });
+		await instance.waitForStatus("complete");
+
+		const done = await center().getTask(task.id);
+		expect(done?.steps[0].detail).toContain("Not allowed: web search");
+		expect(done?.output).toBe("I cannot search.");
 	});
 });
