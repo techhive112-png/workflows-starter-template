@@ -152,3 +152,22 @@ UFGS_23_05_93.pdf,15,requirement,true_positive,SD submittal register item,"Phase
 UFGS_23_05_93.pdf,15,requirement,true_positive,SD submittal register item,"Pre-Final DALT Report; G, [____]"
 UFGS_23_05_93.pdf,15,requirement,false_positive,editor's note fragment,CONSTRUCTION. Retain the single submittal item
 UFGS_26_20_00.pdf,80,requirement,true_positive,test data / COA / certificate submission (submit-verb + document detector),Furnish test equipment and personnel and submit written copies of test results.
+UFGS_01_78_00.pdf,11,requirement,true_positive,list item of a warranty plan / O&M manual requirement,"a. Roles and responsibilities of personnel associated with the warranty process, including points of contact and telephone numbers within the organizations of the Contractors, subcontractors, manufacturers or suppliers involved."
+UFGS_01_78_00.pdf,11,requirement,true_positive,list item of a warranty plan / O&M manual requirement,"b. For each warranty, the name, address, telephone number, and e-mail of each of the guarantor's representatives nearest to the project location."
+UFGS_01_78_00.pdf,11,requirement,true_positive,list item of a warranty plan / O&M manual requirement,"c. A list and status of delivery of Certificates of Warranty for extended warranty items, including roofs, HVAC balancing, pumps, motors, transformers, and for commissioned systems, such as fire protection and alarm systems, sprinkler systems, elevators, and lightning protection systems."
+UFGS_01_78_00.pdf,11,requirement,true_positive,list item of a warranty plan / O&M manual requirement,(2) Model and serial numbers.
+UFGS_01_78_00.pdf,11,requirement,true_positive,list item of a warranty plan / O&M manual requirement,(3) Location where installed.
+UFGS_01_78_00.pdf,11,requirement,true_positive,list item of a warranty plan / O&M manual requirement,(4) Name and phone numbers of manufacturers or suppliers.
+UFGS_01_78_00.pdf,11,requirement,true_positive,list item of a warranty plan / O&M manual requirement,"(5) Names, addresses and telephone numbers of sources of spare parts."
+UFGS_01_78_00.pdf,11,requirement,true_positive,list item of a warranty plan / O&M manual requirement,(6) Warranties and terms of warranty.
+UFGS_01_78_00.pdf,20,requirement,borderline,content detail of a report / markup drawing,b. Provide a copy of all Government review comments.
+UFGS_01_78_00.pdf,21,requirement,borderline,content detail of a report / markup drawing,"a. Use base colors of red, green, and blue."
+UFGS_01_78_00.pdf,21,requirement,borderline,content detail of a report / markup drawing,"(1) Special (Blue) - Items requiring special information, coordination, or special detailing or detailing notes."
+UFGS_01_78_00.pdf,21,requirement,borderline,content detail of a report / markup drawing,"(2) Deletions (Red) - Over-strike deleted graphic items (lines), lettering in notes and leaders."
+UFGS_01_78_00.pdf,21,requirement,borderline,content detail of a report / markup drawing,"(3) Additions (Green) - Added items, lettering in notes and leaders."
+UFGS_01_78_00.pdf,21,requirement,borderline,content detail of a report / markup drawing,"b. Provide a legend if colors other than the ""base"" colors of red, green, and blue are used."
+UFGS_01_78_00.pdf,21,requirement,borderline,content detail of a report / markup drawing,"c. Add and denote any additional equipment or material facilities, service lines, incorporated under As-Built Revisions if not already shown in legend."
+UFGS_01_78_00.pdf,21,requirement,borderline,content detail of a report / markup drawing,d. Use frequent written explanations on markup drawings to describe changes.
+UFGS_26_20_00.pdf,16,requirement,true_positive,list item of a warranty plan / O&M manual requirement,"a. Single line diagram of the ""as-built"" building electrical system."
+UFGS_26_20_00.pdf,16,requirement,true_positive,list item of a warranty plan / O&M manual requirement,"b. Schematic diagram of electrical control system (other than HVAC, covered elsewhere)."
+UFGS_26_20_00.pdf,16,requirement,true_positive,list item of a warranty plan / O&M manual requirement,c. Manufacturers' operating and maintenance manuals on active electrical equipment.

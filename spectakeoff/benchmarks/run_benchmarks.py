@@ -4,7 +4,8 @@
 
 Downloads the public PDFs (FAA, WBDG/UFGS) into a cache directory, runs
 SpecTakeoff and compares the extracted requirement rows with the labelled
-CSV files in this folder. Labels: true_positive / false_positive / borderline
+CSV files in this folder (precision of extracted rows), and with the fully
+labelled page samples gold_*.xlsx (every sentence marked: recall + precision). Labels: true_positive / false_positive / borderline
 (borderline is excluded from scores). Labels cover the rows that were
 extracted plus misses found by reading submittal lists by hand; they are not
 a full recall measurement of every page.
@@ -32,6 +33,24 @@ SETS = {
 }
 
 
+def url_for(name: str) -> str:
+    if name == "150-5370-10H.pdf":
+        return SETS["faa_150-5370-10H_requirement_labels.csv"][name]
+    if name.startswith("UFGS_"):
+        return UFGS.format(name[5:-4].replace("_", "%20"))
+    raise ValueError(f"no download URL known for {name}")
+
+
+def fetch(cache: Path, name: str) -> Path:
+    p = cache / name
+    if not p.exists():
+        url = url_for(name)
+        print(f"Downloading {url}")
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        p.write_bytes(urllib.request.urlopen(req, timeout=120).read())
+    return p
+
+
 def score(findings: list[dict], labels_csv: Path) -> dict:
     labels = {(r["source"], int(r["page"]), r["text"]): r["label"]
               for r in csv.DictReader(open(labels_csv, encoding="utf-8", newline=""))}
@@ -55,20 +74,28 @@ def main() -> int:
     cache.mkdir(parents=True, exist_ok=True)
     report = {}
     for labels, files in SETS.items():
-        paths = []
-        for name, url in files.items():
-            p = cache / name
-            if not p.exists():
-                print(f"Downloading {url}")
-                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-                p.write_bytes(urllib.request.urlopen(req, timeout=120).read())
-            paths.append(str(p))
+        paths = [str(fetch(cache, name)) for name in files]
         out = cache / (Path(labels).stem + ".xlsx")
         if cli(paths + ["-o", str(out), "--no-overlays"]) != 0:
             return 1
         found = json.loads(out.with_suffix(".findings.json").read_text(encoding="utf-8"))["findings"]
         report[labels] = score(found, HERE / labels)
-    print(json.dumps(report, indent=2))
+    # fully labelled page samples (every sentence marked) -> recall AND precision
+    from spectakeoff.evaluate import evaluate, read_gold
+
+    for gold_path in sorted(HERE.glob("gold_*.xlsx")):
+        gold, meta = read_gold(gold_path)
+        paths = [str(fetch(cache, s["name"])) for s in meta["sources"]]
+        out = cache / (gold_path.stem + ".xlsx")
+        if cli(paths + ["-o", str(out), "--no-overlays"]) != 0:
+            return 1
+        found = json.loads(out.with_suffix(".findings.json").read_text(encoding="utf-8"))["findings"]
+        r = evaluate(found, gold)
+        report[gold_path.name] = {k: r[k] for k in ("pages_scored", "gold_requirements", "true_positives",
+                                                   "recall", "recall_ci95", "precision", "precision_ci95")}
+        report[gold_path.name]["missed"] = [m["text"][:120] for m in r["missed"]]
+        report[gold_path.name]["false_positives"] = [m["found"][:120] for m in r["false_positives"]]
+    print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0
 
 

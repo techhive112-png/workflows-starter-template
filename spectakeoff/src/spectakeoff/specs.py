@@ -37,7 +37,10 @@ DELIVERABLE = re.compile(
     re.I,
 )
 # "furnish instruments ... required for the tests": the tests are not what is handed over
-_NOT_OBJECT = re.compile(r"\b(?:for|during|after|before|until|required for)\s+(?:the\s+|all\s+|each\s+)?$", re.I)
+_NOT_OBJECT = re.compile(
+    r"\b(?:for|during|after|before|until|required for)\s+(?:the\s+|all\s+|each\s+)?$|"
+    r"\b(?:have|has|having|bear|bears|bearing)\s+(?:[\w-]+\s+){0,2}$",   # "luminaires which have FM certification"
+    re.I)
 
 
 def has_deliverable(text: str) -> bool:
@@ -58,6 +61,8 @@ NON_DELIVERABLE = re.compile(
     # "one spare normally open auxiliary contact": a built-in feature, not a spare-part deliverable
     r"spare (?:[\w-]+ ){0,3}(?:contacts?|terminals?|poles?|circuits?|spaces?|conduits?|ducts?|capacity|fib(?:er|re)s?|"
     r"pairs?|ports?|slots?|ways?|breakers?|positions?|cores?)\b|"
+    # product attributes: "luminaires which have Factory Mutual certification", "bear the UL label"
+    r"\b(?:which|that)\s+(?:have|has|bear|bears|carry|carries)\s+(?:[\w-]+\s+){0,3}(?:certifications?|certificates?)\b|"
     # cross-references to other sections are not deliverables of this one
     r"\bsections?\s+\d{2}\s?\d{2}\s?\d{2}(?:\.\d{2}(?:\s\d{2})?)?,?(?:\s+[A-Z][A-Z0-9,&/()'-]*(?:\s+[A-Z][A-Z0-9,&/()'-]*)*)?|"
     r"(?:in (?:strict |full )?accordance (?:with|to)|according to|per|following|follow|as recommended by|as directed by) (?:the )?"
@@ -119,6 +124,10 @@ class SectionState:
     in_note: bool = False          # inside an editor's note block (****** ... ******)
     register: str = ""             # current UFGS submittal-register heading (SD-10 ...)
     closeout_ctx: bool = False     # inside a CLOSEOUT SUBMITTALS / WARRANTY article
+    closeout_depth: int = 0        # heading depth of that article (1.7 -> 2); deeper headings stay inside
+    list_ctx: bool = False         # lettered items after "... include the following:" of a requirement
+    since_req: int = 99            # spans since the last extracted requirement
+    last_req_strong: bool = False  # last requirement was about a manual / warranty / report ...
 
 
 # "*****.", UFGS "] *****", and FAA "*****6" where the next line's first character got glued on
@@ -130,7 +139,11 @@ SD_CATEGORY = {"06": "Testing / Reports / Certification", "07": "Testing / Repor
                "11": "Other Closeout"}
 NUMBERED_HEADING = re.compile(r"^\s*(?:PART\s+\d|\d+\.\d+(?:\.\d+)*\s+[A-Z])")
 CLOSEOUT_HEADING = re.compile(r"\b(?:CLOSEOUT SUBMITTALS|CLOSE-OUT SUBMITTALS|MAINTENANCE MATERIAL SUBMITTALS|"
-                              r"EXTRA MATERIALS|WARRANTY|WARRANTIES|SPARE PARTS|OPERATION AND MAINTENANCE DATA)\b")
+                              r"EXTRA MATERIALS|WARRANTY|WARRANTIES|SPARE PARTS|OPERATION AND MAINTENANCE (?:DATA|MANUALS?)|O&M MANUALS?)\b")
+# lists inherit an obligation only from these document-type deliverables (contents of a manual, plan, report)
+STRONG_DOC = re.compile(r"operation and maintenance|\bo&m\b|\bmanuals?\b|warrant|guarant|as-built|record drawings?|"
+                        r"\breports?\b|spare parts|extra materials|closeout|close-out|final acceptance", re.I)
+LIST_ITEM = re.compile(r"^(?:[a-z]|[A-Z]|\d{1,2})[.)]\s|^\(\w{1,3}\)\s")
 
 
 # running footers such as "SECTION 01 78 00  Page 14" carry no content
@@ -278,13 +291,32 @@ def extract_requirements(text: str, source: str, page: int, state: SectionState,
         words = span.split()
         is_heading = (len(words) <= 8 and not span.rstrip("]").endswith((".", ";", ":"))
                       and sum(w[:1].isupper() for w in words if w[:1].isalpha()) >= 0.6 * len(words))
-        if is_heading or NUMBERED_HEADING.match(span):
-            state.closeout_ctx = bool(CLOSEOUT_HEADING.search(span.upper()))
+        numbered = NUMBERED_HEADING.match(span)
+        if is_heading or numbered:
+            num = re.match(r"\s*(\d+(?:\.\d+)*)", span)
+            depth = num.group(1).count(".") + 1 if num else 99
+            if CLOSEOUT_HEADING.search(span.upper()):
+                state.closeout_ctx, state.closeout_depth = True, depth
+            elif not (state.closeout_ctx and depth > state.closeout_depth):
+                state.closeout_ctx = False
+            state.list_ctx, state.since_req, state.last_req_strong = False, 99, False   # a new topic
             continue
+        if len(words) >= 4:      # line-wrap fragments like "Include the" do not count as sentences
+            state.since_req += 1
+        if LIST_ITEM.match(span):
+            in_list = state.list_ctx
+        else:
+            in_list = False
+            # "Include the following:" right after a manual / warranty / report requirement opens an item list
+            state.list_ctx = (span.rstrip().endswith(":") and len(span.split()) <= 8 and state.since_req <= 4
+                              and state.last_req_strong)
         if len(span) < min_span or len(span) > max_span or TOC_LINE.search(span):
             continue
         probe = span.replace("’", "'")
-        implied = state.closeout_ctx and re.match(r"(?:[A-Z]|\d{1,2})\.\s", span)
+        if in_list:   # "a. [Phase [_____]]": an empty template placeholder, not a list item
+            body = re.sub(r"\[[^\]]*\]?|_{2,}|^\W*\w{1,3}[.)]\s*", " ", span)
+            in_list = len(re.findall(r"[A-Za-z]{3,}", body)) >= 2
+        implied = (state.closeout_ctx and re.match(r"(?:[A-Z]|\d{1,2})\.\s", span)) or in_list
         cleaned = NON_DELIVERABLE.sub(" ", probe)
         if not implied and not CLOSEOUT_TERMS.search(cleaned) and not has_deliverable(cleaned):
             continue
@@ -300,8 +332,15 @@ def extract_requirements(text: str, source: str, page: int, state: SectionState,
                     category=classify(span), value=q, unit=u, section=state.section,
                     section_title=state.title, division=division_of(state.section),
                     confidence=confidence, status=CANDIDATE, page_sha256=page_sha)
-        if implied:
+        if in_list:
+            f.flag("List item of the preceding requirement ('... the following:')")
+        elif implied:
             f.flag("Obligation implied by the closeout article heading")
+        state.since_req = 0
+        if not in_list:
+            state.last_req_strong = bool(STRONG_DOC.search(span))
+        if span.rstrip().endswith(":") and STRONG_DOC.search(span):
+            state.list_ctx = True
         if not state.section:
             f.flag("Section number not detected", REVIEW)
         if not q:

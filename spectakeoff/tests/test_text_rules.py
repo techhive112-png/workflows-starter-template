@@ -187,3 +187,36 @@ def test_note_delimiter_with_glued_character_closes_note():
     text, _ = strip_editor_notes(page, SectionState())
     assert "Engineer should specify" not in text
     assert "623-2.3 Water." in text and "friction tests" in text
+
+
+def test_list_items_inherit_from_manual_requirement_only():
+    text = """1.7 OPERATION AND MAINTENANCE MANUALS
+
+1.7.1 Lighting System
+
+Provide operation and maintenance manuals for the lighting system.
+
+Additional requirements for the Navy are provided in another section of this specification.
+
+Include the
+following:
+
+a. Manufacturers' operating and maintenance manuals.
+
+b. Lighting control system one-line diagram.
+
+c. [Phase [_____]]
+
+2.2 AGGREGATE
+
+The aggregate shall have the following properties:
+
+a. Hardness of at least six on the Mohs scale.
+
+b. Provide LED luminaires which have Factory Mutual certification for the class indicated.
+"""
+    found, _ = extract_requirements(text, "x", 19, SectionState("26 51 00", "t"), "", "m", None)
+    assert [f.text for f in found] == [
+        "Provide operation and maintenance manuals for the lighting system.",
+        "a. Manufacturers' operating and maintenance manuals.",
+        "b. Lighting control system one-line diagram."]
