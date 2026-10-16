@@ -150,6 +150,7 @@ Katra izvilktā rinda pārbaudīta (pareiza / kļūdaina / apšaubāma; apšaub�
 | UFGS 22 00 00, 08 71 00 | 152 | 21 | 0 no 1 |
 
 Atkārtot visu: `python benchmarks/run_benchmarks.py` (PDF tiek lejupielādēti no faa.gov un wbdg.org).
+Salīdzinājums ar valodas modeli: `python benchmarks/run_benchmarks.py --llm [--llm-model claude-haiku-5-5] --compare-md llm_results.md` palaiž mērījumu divreiz (tikai noteikumi un noteikumi + `--llm`) un izdrukā tabulu. Google Colab: atver `benchmarks/llm_comparison_colab.ipynb`.
 Marķējumu veicis Claude (AI), nevis tāmētājs; vairākas paša marķējuma kļūdas pārbaudes gaitā atrastas
 un atklāti izlabotas.
 

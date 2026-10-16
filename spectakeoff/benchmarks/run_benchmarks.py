@@ -1,6 +1,7 @@
 """Precision benchmarks on public specifications.
 
-    python benchmarks/run_benchmarks.py [--cache DIR] [--llm [--llm-model ID]]
+    python benchmarks/run_benchmarks.py [--cache DIR] [--report FILE]
+    python benchmarks/run_benchmarks.py --llm [--llm-model ID] [--compare-md FILE]
 
 Downloads the public PDFs (FAA, WBDG/UFGS) into a cache directory, runs
 SpecTakeoff and compares the extracted requirement rows with the labelled
@@ -9,6 +10,9 @@ labelled page samples gold_*.xlsx (every sentence marked: recall + precision). L
 (borderline is excluded from scores). Labels cover the rows that were
 extracted plus misses found by reading submittal lists by hand; they are not
 a full recall measurement of every page.
+
+With --llm the whole benchmark runs twice, rules only and rules + language model
+(outputs of the second run get an "_llm" suffix), and a side-by-side table is printed.
 """
 from __future__ import annotations
 
@@ -68,9 +72,78 @@ def llm_usage(out: Path) -> dict:
     """Sum the --llm token usage the run report records per source."""
     rep = json.loads(out.with_suffix(".run_report.json").read_text(encoding="utf-8"))
     total: Counter = Counter()
+    model = ""
     for src in rep["sources"]:
-        total.update({k: v for k, v in src.get("llm", {}).items() if isinstance(v, int)})
-    return dict(total)
+        llm = src.get("llm") or {}
+        total.update({k: v for k, v in llm.items() if isinstance(v, int)})
+        model = llm.get("model") or model
+    return {"model": model, **total} if model else dict(total)
+
+
+def bench(cli, cache: Path, extra: list[str], suffix: str) -> dict | None:
+    """One full benchmark pass; outputs get `suffix` so rules-only and --llm runs sit side by side."""
+    from spectakeoff.evaluate import evaluate, read_gold
+
+    report = {}
+
+    def run(paths: list[str], stem: str) -> list[dict] | None:
+        out = cache / (stem + suffix + ".xlsx")
+        if cli(paths + ["-o", str(out), "--no-overlays"] + extra) != 0:
+            return None
+        if "--llm" in extra:
+            report.setdefault("llm_usage", Counter()).update(
+                {k: v for k, v in llm_usage(out).items() if isinstance(v, int)})
+            report.setdefault("llm_model", llm_usage(out).get("model", ""))
+        return json.loads(out.with_suffix(".findings.json").read_text(encoding="utf-8"))["findings"]
+
+    for labels, files in SETS.items():
+        found = run([str(fetch(cache, name)) for name in files], Path(labels).stem)
+        if found is None:
+            return None
+        report[labels] = score(found, HERE / labels)
+    # fully labelled page samples (every sentence marked) -> recall AND precision
+    for gold_path in sorted(HERE.glob("gold_*.xlsx")):
+        gold, meta = read_gold(gold_path)
+        found = run([str(fetch(cache, s["name"])) for s in meta["sources"]], gold_path.stem)
+        if found is None:
+            return None
+        r = evaluate(found, gold)
+        report[gold_path.name] = {k: r[k] for k in ("pages_scored", "gold_requirements", "true_positives",
+                                                   "recall", "recall_ci95", "precision", "precision_ci95")}
+        report[gold_path.name]["missed"] = [m["text"][:120] for m in r["missed"]]
+        report[gold_path.name]["false_positives"] = [m["found"][:120] for m in r["false_positives"]]
+    if "llm_usage" in report:
+        report["llm_usage"] = dict(report["llm_usage"])
+    return report
+
+
+def pct(x: int, n: int) -> str:
+    return f"{100 * x / n:.1f}%" if n else "–"
+
+
+def comparison_md(rules: dict, llm: dict) -> str:
+    """Side-by-side table: rules only vs rules + --llm, on the fully labelled gold pages."""
+    rows, tot = [], Counter()
+    for name in sorted(k for k in rules if k.startswith("gold_")):
+        a, b = rules[name], llm[name]
+        fa, fb = a["true_positives"] + len(a["false_positives"]), b["true_positives"] + len(b["false_positives"])
+        tot.update({"gold": a["gold_requirements"], "tp_a": a["true_positives"], "tp_b": b["true_positives"],
+                    "f_a": fa, "f_b": fb})
+        rows.append(f"| {name[:-5]} | {a['gold_requirements']} | {a['true_positives']} → {b['true_positives']} | "
+                    f"{len(a['false_positives'])} → {len(b['false_positives'])} |")
+    use = llm.get("llm_usage", {})
+    return "\n".join([
+        f"Modelis: `{llm.get('llm_model') or '?'}`; tokeni: ievade {use.get('input_tokens', '?')}, "
+        f"izvade {use.get('output_tokens', '?')}.",
+        "",
+        "| Etalons | Īstās prasības | Atrastas (noteikumi → +LLM) | Kļūdainas (noteikumi → +LLM) |",
+        "|---|---|---|---|", *rows,
+        f"| **Kopā** | {tot['gold']} | {tot['tp_a']} → {tot['tp_b']} | "
+        f"{tot['f_a'] - tot['tp_a']} → {tot['f_b'] - tot['tp_b']} |",
+        "",
+        f"Recall: {pct(tot['tp_a'], tot['gold'])} → {pct(tot['tp_b'], tot['gold'])}; "
+        f"precision: {pct(tot['tp_a'], tot['f_a'])} → {pct(tot['tp_b'], tot['f_b'])}.",
+    ]) + "\n"
 
 
 def main() -> int:
@@ -78,8 +151,12 @@ def main() -> int:
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", default=str(Path(tempfile.gettempdir()) / "spectakeoff_bench"))
-    ap.add_argument("--llm", action="store_true", help="also run the LLM recall pass (needs an API key; costs money)")
+    ap.add_argument("--llm", action="store_true", help="run rules-only AND rules + LLM pass, and compare "
+                                                       "(needs an API key; costs tokens)")
     ap.add_argument("--llm-model", default="", help="model id passed to spectakeoff --llm-model")
+    ap.add_argument("--llm-cache", default="", help="answer cache passed to spectakeoff --llm-cache")
+    ap.add_argument("--report", help="also write the JSON report to this file")
+    ap.add_argument("--compare-md", help="with --llm: write the comparison table (Markdown) to this file")
     a = ap.parse_args()
     if a.llm:
         from spectakeoff.keystore import load
@@ -87,37 +164,27 @@ def main() -> int:
         if not load():   # fail before downloading anything
             print("--llm needs ANTHROPIC_API_KEY or a key saved with `spectakeoff key`")
             return 2
-    extra = ["--no-overlays"] + (["--llm"] + (["--llm-model", a.llm_model] if a.llm_model else []) if a.llm else [])
     cache = Path(a.cache)
     cache.mkdir(parents=True, exist_ok=True)
-    report = {}
-    for labels, files in SETS.items():
-        paths = [str(fetch(cache, name)) for name in files]
-        out = cache / (Path(labels).stem + ".xlsx")
-        if cli(paths + ["-o", str(out)] + extra) != 0:
+    rules = bench(cli, cache, [], "")
+    if rules is None:
+        return 1
+    report = rules
+    if a.llm:
+        extra = ["--llm"] + (["--llm-model", a.llm_model] if a.llm_model else []) + \
+                (["--llm-cache", a.llm_cache] if a.llm_cache else [])
+        llm = bench(cli, cache, extra, "_llm")
+        if llm is None:
             return 1
-        found = json.loads(out.with_suffix(".findings.json").read_text(encoding="utf-8"))["findings"]
-        report[labels] = score(found, HERE / labels)
-        if a.llm:
-            report[labels]["llm_usage"] = llm_usage(out)
-    # fully labelled page samples (every sentence marked) -> recall AND precision
-    from spectakeoff.evaluate import evaluate, read_gold
-
-    for gold_path in sorted(HERE.glob("gold_*.xlsx")):
-        gold, meta = read_gold(gold_path)
-        paths = [str(fetch(cache, s["name"])) for s in meta["sources"]]
-        out = cache / (gold_path.stem + ".xlsx")
-        if cli(paths + ["-o", str(out)] + extra) != 0:
-            return 1
-        found = json.loads(out.with_suffix(".findings.json").read_text(encoding="utf-8"))["findings"]
-        r = evaluate(found, gold)
-        report[gold_path.name] = {k: r[k] for k in ("pages_scored", "gold_requirements", "true_positives",
-                                                   "recall", "recall_ci95", "precision", "precision_ci95")}
-        report[gold_path.name]["missed"] = [m["text"][:120] for m in r["missed"]]
-        report[gold_path.name]["false_positives"] = [m["found"][:120] for m in r["false_positives"]]
-        if a.llm:
-            report[gold_path.name]["llm_usage"] = llm_usage(out)
-    print(json.dumps(report, indent=2, ensure_ascii=False))
+        report = {"rules_only": rules, "with_llm": llm}
+        table = comparison_md(rules, llm)
+        print(table)
+        if a.compare_md:
+            Path(a.compare_md).write_text(table, encoding="utf-8")
+    text = json.dumps(report, indent=2, ensure_ascii=False)
+    print(text)
+    if a.report:
+        Path(a.report).write_text(text + "\n", encoding="utf-8")
     return 0
 
 
