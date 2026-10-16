@@ -84,6 +84,7 @@ class PageRecord:
     status: str = "Read"           # Read | REVIEW
     warnings: list[str] = field(default_factory=list)
     overlay: str = ""              # path of annotated review image
+    text: str = ""                 # raw page text, only kept for labelling (Config.keep_text)
 
     def warn(self, msg: str) -> None:
         if msg not in self.warnings:

@@ -116,16 +116,80 @@ def cmd_run(a: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
-def cmd_eval(a: argparse.Namespace) -> int:
-    from spectakeoff.evaluate import run_eval
+def _config_from(a: argparse.Namespace) -> Config:
+    return Config(ocr=a.ocr, ocr_lang=a.ocr_lang, dpi=a.dpi, overlays=False)
 
-    res = run_eval(Path(a.findings), Path(a.gold), a.threshold)
+
+def cmd_label(a: argparse.Namespace) -> int:
+    from spectakeoff.labeling import build_label_workbook
+
+    sources = [Path(s).expanduser().resolve() for s in a.inputs]
+    missing = [str(s) for s in sources if not s.is_file()]
+    if missing:
+        print("Not found: " + ", ".join(missing), file=sys.stderr)
+        return 2
+    out = Path(a.out).expanduser().resolve()
+    rep = build_label_workbook(sources, out, _config_from(a), a.sample, a.pages, a.seed, a.show_predictions)
+    print(f"Etalona fails: {rep['output']}\n  lapas: {rep['pages']} (no {rep['eligible_pages']} ar tekstu) | "
+          f"rindas atzīmēšanai: {rep['rows']}\n  Atzīmē kolonnu 'Prasība?' ar Jā/Nē, tad: spectakeoff eval {out.name}")
+    return 0
+
+
+def cmd_eval(a: argparse.Namespace) -> int:
+    from spectakeoff.evaluate import evaluate, read_gold, write_report_xlsx
+
+    if len(a.files) == 2:
+        findings_path, gold_path = Path(a.files[0]), Path(a.files[1])
+    elif len(a.files) == 1:
+        findings_path, gold_path = None, Path(a.files[0])
+    else:
+        print("Usage: spectakeoff eval [FINDINGS.json] GOLD.xlsx|csv", file=sys.stderr)
+        return 2
+    try:
+        gold, meta = read_gold(gold_path)
+    except ValueError as exc:
+        print(f"Etalona kļūda: {exc}", file=sys.stderr)
+        return 2
+    if findings_path is not None:
+        findings = json.loads(findings_path.read_text(encoding="utf-8"))["findings"]
+    else:   # re-run the tool on the documents recorded in the labelling workbook
+        if not meta.get("sources"):
+            print("Etalonā nav avota failu saraksta - norādi arī findings.json", file=sys.stderr)
+            return 2
+        import hashlib
+
+        base = gold_path.resolve().parent
+        results = []
+        for src in meta["sources"]:
+            p = Path(src["path"])
+            if not p.is_file():
+                p = base / src["name"]
+            if not p.is_file():
+                print(f"Nav atrasts avota fails {src['name']} (meklēts {src['path']} un {base})", file=sys.stderr)
+                return 2
+            if hashlib.sha256(p.read_bytes()).hexdigest() != src["sha256"]:
+                print(f"BRĪDINĀJUMS: {p.name} atšķiras no faila, kuram veidots etalons", file=sys.stderr)
+            print(f"SpecTakeoff {__version__} | {p.name}", flush=True)
+            results.append(process_source(p, _config_from(a))[0])
+        assign_ids(results)
+        findings = [_finding_dict(f) for r in results for f in r.findings]
+    res = evaluate(findings, gold, a.threshold, a.kind)
+    xlsx = Path(a.xlsx) if a.xlsx else gold_path.with_name(gold_path.stem + "_eval.xlsx")
+    write_report_xlsx(res, xlsx)
     if a.report:
         Path(a.report).write_text(json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"gold {res['gold_items']} | predictions in scope {res['predictions_in_scope']} | "
-          f"recall {res['recall']} | precision {res['precision']}")
-    for m in res["missed"]:
-        print(f"  MISSED: {m['gold']!r} (best similarity {m['best_similarity']})")
+
+    def pct(v, ci):
+        return "n/a" if v is None else f"{v * 100:.1f}% (95% CI {ci[0] * 100:.1f}–{ci[1] * 100:.1f}%)"
+
+    print(f"Novērtētas lapas: {res['pages_scored']} | īstās prasības: {res['gold_requirements']} | "
+          f"programmas atradumi: {res['predictions_scored']}")
+    print(f"  Recall:    {pct(res['recall'], res['recall_ci95'])}")
+    print(f"  Precision: {pct(res['precision'], res['precision_ci95'])}")
+    if res["pages_incomplete"]:
+        print(f"  Nepabeigtas lapas (nav vērtētas): {', '.join(res['pages_incomplete'])}")
+    print(f"  Palaistas garām: {len(res['missed'])} | kļūdaini atrastas: {len(res['false_positives'])}")
+    print(f"  Atskaite: {xlsx}")
     return 0
 
 
@@ -153,18 +217,34 @@ def build_parser() -> argparse.ArgumentParser:
                    "(sends text to a third party)")
     r.add_argument("--continue-on-error", action="store_true")
     r.set_defaults(func=cmd_run)
-    e = sub.add_parser("eval", help="score a run against a human-checked gold CSV")
-    e.add_argument("findings", help="<output>.findings.json from a run")
-    e.add_argument("gold", help="CSV with columns source,page,kind,text")
+    lb = sub.add_parser("label", help="create a gold-set workbook to label by hand (Jā/Nē)")
+    lb.add_argument("inputs", nargs="+", help="PDF or image files")
+    lb.add_argument("-o", "--out", default="etalons.xlsx", help="workbook to create (default etalons.xlsx)")
+    lb.add_argument("--sample", type=int, default=20, help="number of random pages (default 20)")
+    lb.add_argument("--pages", default="", help="explicit pages instead of a sample, e.g. 3,7-9")
+    lb.add_argument("--seed", type=int, default=1, help="random seed for the page sample")
+    lb.add_argument("--show-predictions", action="store_true",
+                    help="add a column with what the tool found (biases the labeller; off by default)")
+    lb.set_defaults(func=cmd_label)
+    e = sub.add_parser("eval", help="measure recall/precision against a labelled gold set")
+    e.add_argument("files", nargs="+", metavar="FILE",
+                   help="[FINDINGS.json] GOLD - GOLD is the labelled etalons.xlsx (or a CSV); without "
+                        "FINDINGS the tool re-processes the documents recorded in the workbook")
     e.add_argument("--threshold", type=float, default=0.85, help="text similarity needed for a match")
-    e.add_argument("--report", help="write full JSON report here")
+    e.add_argument("--kind", default="", help="finding kind to score (default: requirement)")
+    e.add_argument("--report", help="also write the full JSON result here")
+    e.add_argument("--xlsx", help="report workbook (default: <gold>_eval.xlsx)")
     e.set_defaults(func=cmd_eval)
+    for sp in (lb, e):
+        sp.add_argument("--no-ocr", dest="ocr", action="store_false")
+        sp.add_argument("--ocr-lang", default="eng")
+        sp.add_argument("--dpi", type=int, default=300)
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] not in ("run", "eval", "-h", "--help", "--version"):
+    if argv and argv[0] not in ("run", "eval", "label", "-h", "--help", "--version"):
         argv.insert(0, "run")
     a = build_parser().parse_args(argv)
     if not getattr(a, "func", None):

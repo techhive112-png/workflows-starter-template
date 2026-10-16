@@ -43,6 +43,7 @@ class Config:
     translate_to: str = ""
     min_span: int = 18
     max_span: int = 1600
+    keep_text: bool = False             # keep raw page text on PageRecord (labelling)
 
 
 @dataclass
@@ -76,6 +77,8 @@ def _maybe_translate(ctx: _Ctx, text: str) -> str:
 
 
 def _add_requirements(ctx: _Ctx, rec: PageRecord, text: str, method: str, conf: float | None) -> None:
+    if ctx.cfg.keep_text:
+        rec.text = text
     text, dropped = strip_editor_notes(text, ctx.state)
     if dropped:
         rec.warnings.append(f"{dropped} line(s) of editor's notes (****** blocks) not treated as requirements")

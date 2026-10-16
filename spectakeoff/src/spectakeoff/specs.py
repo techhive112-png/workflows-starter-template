@@ -18,7 +18,8 @@ CLOSEOUT_TERMS = re.compile(
     r"(?<![\w-])(?:attic stock|spares?|extra materials?|extra filters?|special tools?|operation(?:s)? and maintenance|o&m|"
     r"operating and maintenance|owner(?:'s)? manuals?|maintenance service|service contract|training|"
     r"warrant(?:y|ies|ed|s)?|as[- ]built|record drawings?|closeout|close-out|turnover|turn over|commissioning|"
-    r"test reports?|inspection reports?|final reports?|instruction manuals?|replacement parts?|"
+    r"test reports?|documentation of (?:the )?tests?(?: performed)?|"
+    r"inspection reports?|final reports?|instruction manuals?|replacement parts?|"
     r"maintenance agreement|maintenance materials?|operation manual|service visits?|submittals?|deliverables?|"
     r"certifications?|certificates?|manufacturer(?:'s)? (?:[a-z]+ ){0,2}instructions|spare equipment|extra stock|maintenance data|"
     r"guarant(?:ee|eed|ees|y)|demonstration of (?:the )?(?:system|equipment)s?)(?![\w])",
