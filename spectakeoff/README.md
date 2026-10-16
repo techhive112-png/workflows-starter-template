@@ -149,7 +149,7 @@ Katra izvilktā rinda pārbaudīta (pareiza / kļūdaina / apšaubāma; apšaub�
 | UFGS 01 78 00, 23 05 93, 26 20 00 | 168 | 121 | 0 no 37 |
 | UFGS 22 00 00, 08 71 00 | 152 | 21 | 0 no 1 |
 
-Atkārtot visu: `python benchmarks/run_benchmarks.py` (PDF tiek lejupielādēti no faa.gov un wbdg.org).
+Atkārtot visu: `python benchmarks/run_benchmarks.py` (PDF tiek lejupielādēti no faa.gov un wbdg.org). Ar `--llm` (un pēc izvēles `--llm-model`) tas pats mērījums ietver valodas modeļa pārbaudi.
 Marķējumu veicis Claude (AI), nevis tāmētājs; vairākas paša marķējuma kļūdas pārbaudes gaitā atrastas
 un atklāti izlabotas.
 

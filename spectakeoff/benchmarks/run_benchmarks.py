@@ -1,6 +1,6 @@
 """Precision benchmarks on public specifications.
 
-    python benchmarks/run_benchmarks.py [--cache DIR]
+    python benchmarks/run_benchmarks.py [--cache DIR] [--llm [--llm-model ID]]
 
 Downloads the public PDFs (FAA, WBDG/UFGS) into a cache directory, runs
 SpecTakeoff and compares the extracted requirement rows with the labelled
@@ -9,6 +9,9 @@ labelled page samples gold_*.xlsx (every sentence marked: recall + precision). L
 (borderline is excluded from scores). Labels cover the rows that were
 extracted plus misses found by reading submittal lists by hand; they are not
 a full recall measurement of every page.
+
+With --llm every run adds the language-model recall pass; outputs get an "_llm" suffix so
+they sit next to the rules-only ones, and the report adds the token usage under "llm_usage".
 """
 from __future__ import annotations
 
@@ -69,14 +72,34 @@ def main() -> int:
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", default=str(Path(tempfile.gettempdir()) / "spectakeoff_bench"))
+    ap.add_argument("--llm", action="store_true", help="add the language-model pass (needs an API key, costs tokens)")
+    ap.add_argument("--llm-model", default="", help="model id passed to spectakeoff --llm-model")
+    ap.add_argument("--llm-cache", default="", help="answer cache passed to spectakeoff --llm-cache")
     a = ap.parse_args()
     cache = Path(a.cache)
     cache.mkdir(parents=True, exist_ok=True)
-    report = {}
+    extra, suffix = ["--no-overlays"], ""
+    if a.llm:
+        extra += ["--llm"] + (["--llm-model", a.llm_model] if a.llm_model else []) + \
+                 (["--llm-cache", a.llm_cache] if a.llm_cache else [])
+        suffix = "_llm"
+    report, usage = {}, Counter()
+
+    def run(paths: list[str], stem: str) -> Path | None:
+        out = cache / (stem + suffix + ".xlsx")
+        if cli(paths + ["-o", str(out)] + extra) != 0:
+            return None
+        for src in json.loads(out.with_suffix(".run_report.json").read_text(encoding="utf-8"))["sources"]:
+            llm = src.get("llm") or {}
+            usage.update({k: v for k, v in llm.items() if isinstance(v, int)})
+            if llm.get("model"):
+                report.setdefault("llm_usage", {})["model"] = llm["model"]
+        return out
+
     for labels, files in SETS.items():
         paths = [str(fetch(cache, name)) for name in files]
-        out = cache / (Path(labels).stem + ".xlsx")
-        if cli(paths + ["-o", str(out), "--no-overlays"]) != 0:
+        out = run(paths, Path(labels).stem)
+        if out is None:
             return 1
         found = json.loads(out.with_suffix(".findings.json").read_text(encoding="utf-8"))["findings"]
         report[labels] = score(found, HERE / labels)
@@ -86,8 +109,8 @@ def main() -> int:
     for gold_path in sorted(HERE.glob("gold_*.xlsx")):
         gold, meta = read_gold(gold_path)
         paths = [str(fetch(cache, s["name"])) for s in meta["sources"]]
-        out = cache / (gold_path.stem + ".xlsx")
-        if cli(paths + ["-o", str(out), "--no-overlays"]) != 0:
+        out = run(paths, gold_path.stem)
+        if out is None:
             return 1
         found = json.loads(out.with_suffix(".findings.json").read_text(encoding="utf-8"))["findings"]
         r = evaluate(found, gold)
@@ -95,6 +118,8 @@ def main() -> int:
                                                    "recall", "recall_ci95", "precision", "precision_ci95")}
         report[gold_path.name]["missed"] = [m["text"][:120] for m in r["missed"]]
         report[gold_path.name]["false_positives"] = [m["found"][:120] for m in r["false_positives"]]
+    if a.llm:
+        report.setdefault("llm_usage", {}).update(usage)
     print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0
 
