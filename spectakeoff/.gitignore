@@ -1,0 +1,7 @@
+__pycache__/
+*.egg-info/
+.pytest_cache/
+*_SpecTakeoff_v4.xlsx
+*.findings.json
+*.run_report.json
+*_review/

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spectakeoff"
+version = "4.0.0"
+description = "Auditable construction spec, drawing and image takeoff to Excel"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pymupdf>=1.24",
+    "openpyxl>=3.1",
+    "opencv-python-headless>=4.8",
+    "numpy>=1.24",
+    "pillow>=10",
+    "pytesseract>=0.3.10",
+]
+
+[project.optional-dependencies]
+translate = ["deep-translator>=1.11"]
+llm = ["anthropic>=0.40"]
+dev = ["pytest>=8", "anthropic>=0.40"]
+
+[project.scripts]
+spectakeoff = "spectakeoff.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
