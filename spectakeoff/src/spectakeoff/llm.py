@@ -73,7 +73,9 @@ class Classifier:
         import anthropic
 
         if self.client is None:
-            self.client = anthropic.Anthropic()
+            from spectakeoff.keystore import load
+
+            self.client = anthropic.Anthropic(api_key=load() or None)
         lines = "\n".join(f"{i}. {' '.join(t.split())[:MAX_CHARS]}" for i, t in enumerate(texts, 1))
         resp = self.client.messages.create(
             model=self.model, max_tokens=4096,

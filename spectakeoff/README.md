@@ -67,7 +67,8 @@ Rindas bez `verified_by` tiek ignorētas — nepārbaudīts skaits nekad netiek 
 ### Valodas modeļa pārbaude (`--llm`, pēc izvēles)
 
 ```bash
-export ANTHROPIC_API_KEY=...
+spectakeoff key        # vienreiz: ielīmē atslēgu (sk-ant-api03-…), tā tiek pārbaudīta un saglabāta
+                       # ~/.config/spectakeoff/api_key (tikai tev lasāma); --status, --remove
 spectakeoff projekts.pdf --llm                              # claude-opus-5-5
 spectakeoff projekts.pdf --llm --llm-model claude-haiku-5-5 # ~40x lētāk
 ```

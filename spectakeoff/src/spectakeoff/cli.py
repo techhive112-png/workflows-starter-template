@@ -74,6 +74,11 @@ def cmd_run(a: argparse.Namespace) -> int:
                   llm_cache=Path(a.llm_cache).expanduser() if a.llm_cache else
                   Path.home() / ".cache" / "spectakeoff" / "llm_cache.json")
     if a.llm:
+        from spectakeoff.keystore import load
+
+        if not load():
+            print("Kļūda: --llm vajag API atslēgu. Palaid vienreiz: spectakeoff key", file=sys.stderr)
+            return 2
         print("NOTE: --llm sends candidate sentences (not whole pages) to the Anthropic API.", file=sys.stderr)
     meta = {k: (str(v) if isinstance(v, Path) else v) for k, v in vars(a).items() if k != "func"}
     if a.out:   # one combined workbook: cross-file conflicts and calculations
@@ -197,6 +202,29 @@ def cmd_eval(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_key(a: argparse.Namespace) -> int:
+    import getpass
+
+    from spectakeoff import keystore
+
+    if a.remove:
+        print("Atslēga izdzēsta." if keystore.remove() else "Saglabātas atslēgas nav.")
+        return 0
+    if a.status:
+        k = keystore.load()
+        print(f"Atslēga ir iestatīta ({k[:14]}…)." if k else "Atslēga nav iestatīta. Palaid: spectakeoff key")
+        return 0
+    print("Ielīmē API atslēgu no console.anthropic.com → API Keys (teksts netiks rādīts) un spied Enter:")
+    key = keystore.normalise(getpass.getpass(""))
+    err = keystore.problem(key) or ("" if a.no_check else keystore.verify(key))
+    if err:
+        print(f"Kļūda: {err}", file=sys.stderr)
+        return 1
+    print(f"Atslēga strādā un ir saglabāta: {keystore.save(key)}")
+    print("Tagad vari lietot: spectakeoff run fails.pdf --llm --llm-model claude-haiku-5-5")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="spectakeoff", description="SpecTakeoff 4.0 — auditable spec, drawing and "
                                 "image takeoff. Nothing is certified; every row needs human review.")
@@ -220,7 +248,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--translate", metavar="LANG", help="best-effort online translation of requirements "
                    "(sends text to a third party)")
     r.add_argument("--llm", action="store_true", help="extra recall pass with a Claude model; sends candidate "
-                   "sentences to the Anthropic API (needs ANTHROPIC_API_KEY)")
+                   "sentences to the Anthropic API (run `spectakeoff key` once, or set ANTHROPIC_API_KEY)")
     r.add_argument("--llm-model", default="", help="model id (default claude-opus-5-5; claude-haiku-5-5 is far cheaper)")
     r.add_argument("--llm-cache", help="answer cache file (default ~/.cache/spectakeoff/llm_cache.json)")
     r.add_argument("--continue-on-error", action="store_true")
@@ -243,6 +271,11 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--report", help="also write the full JSON result here")
     e.add_argument("--xlsx", help="report workbook (default: <gold>_eval.xlsx)")
     e.set_defaults(func=cmd_eval)
+    k = sub.add_parser("key", help="save your Anthropic API key once for --llm")
+    k.add_argument("--remove", action="store_true", help="delete the saved key")
+    k.add_argument("--status", action="store_true", help="show whether a key is set")
+    k.add_argument("--no-check", action="store_true", help="save without the 1-token test request")
+    k.set_defaults(func=cmd_key)
     for sp in (lb, e):
         sp.add_argument("--no-ocr", dest="ocr", action="store_false")
         sp.add_argument("--ocr-lang", default="eng")
@@ -252,7 +285,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] not in ("run", "eval", "label", "-h", "--help", "--version"):
+    if argv and argv[0] not in ("run", "eval", "label", "key", "-h", "--help", "--version"):
         argv.insert(0, "run")
     a = build_parser().parse_args(argv)
     if not getattr(a, "func", None):
