@@ -1,6 +1,7 @@
 """Precision benchmarks on public specifications.
 
     python benchmarks/run_benchmarks.py [--cache DIR]
+    python benchmarks/run_benchmarks.py --llm [--llm-model MODEL] --report llm_results.json
 
 Downloads the public PDFs (FAA, WBDG/UFGS) into a cache directory, runs
 SpecTakeoff and compares the extracted requirement rows with the labelled
@@ -69,14 +70,20 @@ def main() -> int:
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", default=str(Path(tempfile.gettempdir()) / "spectakeoff_bench"))
+    ap.add_argument("--llm", action="store_true", help="run the extra --llm recall pass (sends text to the Anthropic API)")
+    ap.add_argument("--llm-model", default="", help="model id passed to --llm-model (CLI default if empty)")
+    ap.add_argument("--report", help="also write the JSON report to this file")
     a = ap.parse_args()
     cache = Path(a.cache)
     cache.mkdir(parents=True, exist_ok=True)
+    extra = []
+    if a.llm:
+        extra += ["--llm"] + (["--llm-model", a.llm_model] if a.llm_model else [])
     report = {}
     for labels, files in SETS.items():
         paths = [str(fetch(cache, name)) for name in files]
         out = cache / (Path(labels).stem + ".xlsx")
-        if cli(paths + ["-o", str(out), "--no-overlays"]) != 0:
+        if cli(paths + ["-o", str(out), "--no-overlays"] + extra) != 0:
             return 1
         found = json.loads(out.with_suffix(".findings.json").read_text(encoding="utf-8"))["findings"]
         report[labels] = score(found, HERE / labels)
@@ -87,7 +94,7 @@ def main() -> int:
         gold, meta = read_gold(gold_path)
         paths = [str(fetch(cache, s["name"])) for s in meta["sources"]]
         out = cache / (gold_path.stem + ".xlsx")
-        if cli(paths + ["-o", str(out), "--no-overlays"]) != 0:
+        if cli(paths + ["-o", str(out), "--no-overlays"] + extra) != 0:
             return 1
         found = json.loads(out.with_suffix(".findings.json").read_text(encoding="utf-8"))["findings"]
         r = evaluate(found, gold)
@@ -95,7 +102,10 @@ def main() -> int:
                                                    "recall", "recall_ci95", "precision", "precision_ci95")}
         report[gold_path.name]["missed"] = [m["text"][:120] for m in r["missed"]]
         report[gold_path.name]["false_positives"] = [m["found"][:120] for m in r["false_positives"]]
-    print(json.dumps(report, indent=2, ensure_ascii=False))
+    text = json.dumps(report, indent=2, ensure_ascii=False)
+    print(text)
+    if a.report:
+        Path(a.report).write_text(text + "\n", encoding="utf-8")
     return 0
 
 
