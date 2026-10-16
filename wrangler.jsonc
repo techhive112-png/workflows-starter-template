@@ -16,6 +16,14 @@
 	"observability": {
 		"enabled": true
 	},
+	"previews": {
+		"vars": {
+			"AI_MODEL": "@cf/meta/llama-3.1-8b-instruct"
+		},
+		"ai": {
+			"binding": "AI"
+		}
+	},
 	/**
 	 * Workers AI - the brain of your AI workers
 	 * https://developers.cloudflare.com/workers-ai/
