@@ -125,7 +125,11 @@ def evaluate(findings: list[dict], gold: list[dict], threshold: float = 0.85, ki
                  if g["source"] == f["source_file"] and int(g["page"]) == int(f["page"])]
         best4 = max(cands, default=(0.0, 0.0, -1, None), key=lambda c: (c[0], c[1]))
         best = (best4[0], best4[2], best4[3])
-        if best[0] >= threshold and best[2].get("label", "yes") == "yes":
+        if best[0] >= threshold and best[2].get("label", "yes") == "yes" and best[1] in hit:
+            # a second row for an already matched requirement is a duplicate, not another true positive
+            fp_preds.append({"source": f["source_file"], "page": f["page"], "found": f["text"],
+                             "why": "dublikāts jau atrastai etalona rindai", "gold": best[2]["text"], "note": ""})
+        elif best[0] >= threshold and best[2].get("label", "yes") == "yes":
             hit.add(best[1])
             tp_preds.append({"source": f["source_file"], "page": f["page"], "found": f["text"],
                              "gold": best[2]["text"], "score": round(best[0], 3)})

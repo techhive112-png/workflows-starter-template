@@ -76,6 +76,8 @@ def cmd_run(a: argparse.Namespace) -> int:
     if a.llm:
         from spectakeoff.keystore import load
 
+        if not _have_sdk():
+            return 2
         if not load():
             print("Kļūda: --llm vajag API atslēgu. Palaid vienreiz: spectakeoff key", file=sys.stderr)
             return 2
@@ -202,6 +204,16 @@ def cmd_eval(a: argparse.Namespace) -> int:
     return 0
 
 
+def _have_sdk() -> bool:
+    """Check for the Anthropic SDK before any work, not after a long OCR run."""
+    try:
+        import anthropic  # noqa: F401
+    except ImportError:
+        print("Kļūda: --llm vajag Anthropic SDK. Instalē: pip install -e .[llm]", file=sys.stderr)
+        return False
+    return True
+
+
 def cmd_key(a: argparse.Namespace) -> int:
     import getpass
 
@@ -214,6 +226,8 @@ def cmd_key(a: argparse.Namespace) -> int:
         k = keystore.load()
         print(f"Atslēga ir iestatīta ({k[:14]}…)." if k else "Atslēga nav iestatīta. Palaid: spectakeoff key")
         return 0
+    if not a.no_check and not _have_sdk():
+        return 2
     print("Ielīmē API atslēgu no console.anthropic.com → API Keys (teksts netiks rādīts) un spied Enter:")
     key = keystore.normalise(getpass.getpass(""))
     err = keystore.problem(key) or ("" if a.no_check else keystore.verify(key))

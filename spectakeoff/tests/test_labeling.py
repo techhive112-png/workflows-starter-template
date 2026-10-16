@@ -78,6 +78,16 @@ def test_match_prefers_the_exact_row():
     assert (r["recall"], r["precision"]) == (1.0, 1.0)
 
 
+def test_second_match_of_one_gold_row_is_a_duplicate():
+    long = "Submit the certified test reports for each lot of asphalt mixture to the RPR before placement."
+    gold = [{"source": "s.pdf", "page": 1, "text": long, "label": "yes"}]
+    found = [{"source_file": "s.pdf", "page": 1, "kind": "requirement", "text": long[:60]},
+             {"source_file": "s.pdf", "page": 1, "kind": "requirement", "text": long[30:]}]
+    r = evaluate(found, gold)
+    assert r["recall"] == 1.0 and len(r["matched"]) == 1 and r["precision"] == 0.5
+    assert r["false_positives"][0]["why"].startswith("dublikāts")
+
+
 def test_wilson_interval():
     lo, hi = wilson(9, 10)
     assert 0.55 < lo < 0.6 and 0.98 < hi < 0.99

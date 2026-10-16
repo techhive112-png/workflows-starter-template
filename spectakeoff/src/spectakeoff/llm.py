@@ -88,7 +88,9 @@ class Classifier:
         self.stats.output_tokens += resp.usage.output_tokens
         if resp.stop_reason == "refusal":
             raise RuntimeError("model refused the batch")
-        text = next(b.text for b in resp.content if b.type == "text")
+        text = next((b.text for b in resp.content if b.type == "text"), None)
+        if text is None:
+            raise RuntimeError(f"no text block (stop_reason={resp.stop_reason})")
         return {i for i in json.loads(text)["yes"] if 1 <= i <= len(texts)}
 
     def classify(self, texts: list[str]) -> list[bool]:

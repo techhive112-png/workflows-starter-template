@@ -45,3 +45,13 @@ def test_api_error_keeps_rules_only_result(tmp_path):
     clf = Classifier("claude-test", None, client=SimpleNamespace(messages=Boom()))
     assert clf.classify(["The Contractor shall submit the test report."]) == [False]
     assert clf.stats.errors
+
+
+def test_response_without_text_block_keeps_rules_only_result():
+    class NoText:
+        def create(self, **kw):
+            return SimpleNamespace(stop_reason="max_tokens", content=[],
+                                   usage=SimpleNamespace(input_tokens=10, output_tokens=0, cache_read_input_tokens=0))
+    clf = Classifier("claude-test", None, client=SimpleNamespace(messages=NoText()))
+    assert clf.classify(["The Contractor shall submit the test report."]) == [False]
+    assert "no text block" in clf.stats.errors[0]
