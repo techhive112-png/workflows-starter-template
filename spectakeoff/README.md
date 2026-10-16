@@ -8,7 +8,7 @@ Katrai atrastajai vērtībai ir avota fails, lapa, apgabals lapā un oriģināla
 
 | Joma | 3.1 | 4.0 |
 |---|---|---|
-| Struktūra | viens 340 rindu skripts | Python pakotne (`src/spectakeoff`), CLI, 29 automātiskie testi |
+| Struktūra | viens 340 rindu skripts | Python pakotne (`src/spectakeoff`), CLI, 38 automātiskie testi |
 | Ievade | tikai PDF | PDF + attēli (PNG, JPG, TIFF ar vairākām lapām, WEBP, BMP) |
 | Lapas tipa noteikšana | nav | specifikācijas teksts / vektoru rasējums / rastra rasējums / skenēts teksts / foto / tukša |
 | Vektoru PDF rasējumi | apstrādāti kā teksts | precīzs teksts ar koordinātām tieši no PDF, bez OCR |
@@ -72,38 +72,66 @@ Rindas bez `verified_by` tiek ignorētas — nepārbaudīts skaits nekad netiek 
 * `projekts.findings.json` — visi atradumi mašīnlasāmā formā (integrācijām, `eval`)
 * `projekts.run_report.json` — izpildes atskaite
 
-### Precizitātes mērīšana
+### Precizitātes mērīšana uz saviem dokumentiem (etalons)
+
+Precizitāti var godīgi izmērīt tikai tad, ja cilvēks atzīmē **visas** prasības dažās lapās —
+ne tikai programmas atrastās. Tam ir divas komandas:
 
 ```bash
-spectakeoff eval projekts.findings.json etalons.csv --report eval.json
+# 1) izveido Excel ar katru teikumu/saraksta punktu 20 nejaušās lapās
+spectakeoff label projekts.pdf --sample 20 -o etalons.xlsx
+#    (vai konkrētas lapas: --pages 3,7-9)
+
+# 2) atver etalons.xlsx, kolonnā "Prasība?" izvēlies Jā / Nē / ? katrai rindai, saglabā
+
+# 3) izmēra (programma pati atkārtoti apstrādā tos pašus PDF; tiem jābūt tajā pašā mapē)
+spectakeoff eval etalons.xlsx
 ```
 
-`etalons.csv` kolonnas: `source,page,kind,text` (kind: `requirement`, `drawing_text`, `token`,
-`schedule_row`). Tiek vērtētas tikai etalonā iekļautās lapas. Rezultāts attiecas tikai uz šo
-etalonu — tas nav garantija citiem dokumentiem.
+Rezultāts: recall (cik no īstajām prasībām atrastas) un precision (cik no atrastajām ir pareizas)
+ar 95% ticamības intervālu, un `etalons_eval.xlsx` ar lapām *Palaistas garām* un
+*Kļūdaini atrastas*. Lapas, kur kaut viena rinda nav atzīmēta, netiek vērtētas. Lapā *Instrukcija*
+ir definīcija, kas skaitās "Jā". 20 lapas ≈ 400–500 rindas ≈ 1–1,5 h darba.
 
-## Precizitātes mērījumi (publiskas specifikācijas, 1047 lapas)
+Vecais formāts (CSV ar `source,page,kind,text`) joprojām darbojas:
+`spectakeoff eval projekts.findings.json etalons.csv`.
 
-Katra izvilktā prasības rinda tika pārbaudīta un atzīmēta: pareiza / kļūdaina / apšaubāma
-(apšaubāmās netiek vērtētas). Etaloni: `benchmarks/*.csv`; atkārtot:
-`python benchmarks/run_benchmarks.py` (PDF tiek lejupielādēti no faa.gov un wbdg.org).
+## Precizitātes mērījumi (publiskas specifikācijas)
 
-| Kopa | Lapas | Statuss | Pirms labojumiem | Pēc labojumiem |
+### Pilnībā atzīmētas lapas (recall + precision) — godīgākais mērījums
+
+Katrā kopā **katrs** teikums izvēlētajās lapās atzīmēts Jā/Nē. Kopas "neredzēts" tika izveidotas
+pēc noteikumu iesaldēšanas, un rezultāts pierakstīts **pirms** jebkādiem labojumiem.
+
+| Kārta | Lapas | Noteikumi | Recall (atrastas īstās) | Precision (pareizas atrastās) |
 |---|---|---|---|---|
-| FAA AC 150/5370-10H | 727 | izstrādes kopa | 75,8% (169 pareizas, 54 kļūdainas) | 170/170 pareizas, 0/57 kļūdainas |
-| UFGS 01 78 00, 23 05 93, 26 20 00 | 168 | pirmais neredzētais tests | **67,6%** (75 pareizas, 36 kļūdainas); atrastas 75 no 102 | 102/102 pareizas, 0/37 kļūdainas |
-| UFGS 22 00 00, 08 71 00 | 152 | **neredzēts, noteikumi iesaldēti** | **94,7%** (18 pareizas, 1 kļūdaina); atrastas 18 no 19 | 19/19, 0/1 |
+| 1. FAA izlase | 20 | pirms labojumiem | **44%** (4/9) | 100% (4/4) |
+| 2. FAA + jauni UFGS (neredzēts) | 30 | iesaldēti `c69ad0c` | **40%** (6/15) | 86% (6/7) |
+| 3. FAA + jauni UFGS (neredzēts) | 30 | iesaldēti `6befdab` | **60%** (3/5) | 100% (3/3) |
 
-Svarīgi lasot šos skaitļus:
+Pēc katras kārtas kļūdas tika labotas pēc **veida** (nevis rindas), un tagad visas 5 atzīmētās kopas
+(95 lapas, 29 īstās prasības) dod 28/29 atrastas, 0 kļūdainu — bet tas ir **pēc** noregulēšanas uz
+tām pašām lapām, tāpēc tas nav neatkarīgs skaitlis. Neatkarīgie skaitļi ir tabulā augstāk: pārklājums
+uz jaunām lapām līdz šim bijis 40–60%, precizitāte 86–100%; paraugi ir mazi (5–15 prasības kārtā),
+tāpēc ticamības intervāli ir plaši.
 
-* Kolonna "Pēc labojumiem" pirmajām divām kopām ir **pēc noregulēšanas uz tām pašām lapām** — tā
-  nav neatkarīga precizitāte. Godīgākais skaitlis ir trešās kopas 94,7%, kas izmērīts pirms jebkādām
-  izmaiņām, uz dokumentiem, kurus noteikumi nebija redzējuši (mazs paraugs: 22 rindas).
-* Skaitļi "pirms labojumiem" ir pārrēķināti ar izlabotajiem marķējumiem.
-* Marķējumu veicis Claude (AI), nevis tāmētājs. Pārbaudes laikā 9 rindām paša marķējums tika
-  atklāti izlabots (piem. teikumi redaktora piezīmēs, kas sākotnēji atzīmēti kā pareizi).
-* Tiek mērīta izvilkto rindu precizitāte. Pilns pārklājums (recall) visās lapās nav mērīts — tikai
-  UFGS SD sarakstiem, salīdzinot ar rokām.
+Galvenais secinājums: **precizitāte ir augsta, pārklājums ir vājā vieta.** Noteikumu pieeja katrā
+jaunā dokumentā atrod jaunus formulējumus, ko tā nepazīst. Pirms klientam sola konkrētu skaitli,
+jāizmēra ar `spectakeoff label` / `eval` uz klienta paša dokumentu tipa.
+
+### Izvilkto rindu pārbaude (tikai precision)
+
+Katra izvilktā rinda pārbaudīta (pareiza / kļūdaina / apšaubāma; apšaubāmās nevērtē):
+
+| Kopa | Lapas | Pareizas | Zināmas kļūdainas, kas vēl tiek izvilktas |
+|---|---|---|---|
+| FAA AC 150/5370-10H | 727 | 246 | 0 no 58 |
+| UFGS 01 78 00, 23 05 93, 26 20 00 | 168 | 121 | 0 no 37 |
+| UFGS 22 00 00, 08 71 00 | 152 | 21 | 0 no 1 |
+
+Atkārtot visu: `python benchmarks/run_benchmarks.py` (PDF tiek lejupielādēti no faa.gov un wbdg.org).
+Marķējumu veicis Claude (AI), nevis tāmētājs; vairākas paša marķējuma kļūdas pārbaudes gaitā atrastas
+un atklāti izlabotas.
 
 Labotie kļūdu veidi (visiem ir regresijas testi):
 

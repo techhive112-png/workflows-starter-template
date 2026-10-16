@@ -220,3 +220,19 @@ b. Provide LED luminaires which have Factory Mutual certification for the class 
         "Provide operation and maintenance manuals for the lighting system.",
         "a. Manufacturers' operating and maintenance manuals.",
         "b. Lighting control system one-line diagram."]
+
+
+def test_certify_documentation_and_direction_of_delivery():
+    st = SectionState("P-620", "t")
+    yes = ["The manufacturer shall certify that the product does not contain mercury or lead.",
+           "The documentation will be provided by the Contractor to the RPR within 24 hours.",
+           "The Contractor shall provide a supplemental COA from an independent laboratory.",
+           "Friction tests shall be submitted from no less than one of the airports on the list."]
+    no = ["Copies of all tests will be furnished to the Contractor's representative at their request.",
+          "The Contractor must furnish instruments, equipment, and personnel required for the tests.",
+          "The Contractor shall review the documentation before work starts.",
+          "After all system components are provided and operational tests are complete, flush the system."]
+    for t in yes:
+        assert len(extract_requirements(t, "x", 1, st, "", "m", None)[0]) == 1, t
+    for t in no:
+        assert extract_requirements(t, "x", 1, st, "", "m", None)[0] == [], t

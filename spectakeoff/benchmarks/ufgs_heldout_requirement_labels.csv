@@ -23,3 +23,4 @@ UFGS_08_71_00.pdf,24,requirement,true_positive,,Provide manufacturer's 10 year w
 UFGS_08_71_00.pdf,28,requirement,true_positive,,"Provide special tools, such as spanner and socket wrenches and dogging keys, as required to service and adjust hardware items."
 UFGS_22_00_00.pdf,24,requirement,true_positive,SD-06 item missed by the frozen rules,"Test of Backflow Prevention Assemblies; G, [_____]"
 UFGS_22_00_00.pdf,95,requirement,true_positive,test documentation deliverable (found after labelling p95 completely),The Contractor must provide written documentation of the tests performed and signed by the individual performing the tests.
+UFGS_08_71_00.pdf,9,requirement,true_positive,documentation / certification deliverable,"Provide documentation of ABA/ADA accessibility compliance of applicable components, as required by 36 CFR 1191 Appendix D - Technical."

@@ -28,10 +28,11 @@ CLOSEOUT_TERMS = re.compile(
 # A submission verb and a document noun in the same sentence: "Friction tests shall be submitted",
 # "the Contractor shall provide a supplemental COA". Catches deliverables the keyword list misses.
 _DOC = (r"COAs?|COCs?|certificates?|certifications?|(?:test|inspection|calibration|analysis|field|final)\s+reports?|"
-        r"tests|test\s+data|test\s+results|documentation\s+of\s+(?:the\s+)?tests?")
+        r"tests|test\s+data|test\s+results|documentation(?:\s+of\s+(?:the\s+)?tests?)?")
 _SUBMIT_ACTIVE = r"submit|submits|furnish|furnishes|provide|provides"
 _SUBMIT_PASSIVE = r"submitted|furnished|provided"
 DELIVERABLE = re.compile(
+    r"\b(?:shall|must|will)\s+(?:also\s+)?certify\b|"          # "the manufacturer shall certify that ..."
     rf"\b(?:{_SUBMIT_ACTIVE})\b(?P<gap>(?:\W+\w+){{0,14}}?)\W+(?:{_DOC})\b|"
     rf"\b(?:{_DOC})\b(?:\W+\w+){{0,10}}?\W+(?:be|are|is)\s+(?:{_SUBMIT_PASSIVE})\b",
     re.I,
@@ -43,9 +44,14 @@ _NOT_OBJECT = re.compile(
     re.I)
 
 
+_TO_CONTRACTOR = re.compile(r"^\s+to\s+the\s+contractor", re.I)   # owner -> contractor, not a deliverable
+
+
 def has_deliverable(text: str) -> bool:
     for m in DELIVERABLE.finditer(text):
-        if m.group("gap") is not None:
+        if _TO_CONTRACTOR.match(text[m.end():m.end() + 25]):
+            continue
+        if m.group("gap") is not None and m.group(0).lower().split()[0] not in ("shall", "must", "will"):
             doc_start = m.start() + len(m.group(0)) - len(re.search(rf"(?:{_DOC})$", m.group(0), re.I).group(0))
             if _NOT_OBJECT.search(text[max(0, doc_start - 30):doc_start]):
                 continue
@@ -77,7 +83,8 @@ CLARIFICATION = re.compile(
 )
 OBLIGATION = re.compile(
     r"\b(shall|must|required to|will provide|provide|furnish|supply|submit|deliver|include|turn over|turnover|"
-    r"maintain|warrants|warranted|is to be submitted|are to be submitted)\b(?!\s+not\b)",
+    r"maintain|warrants|warranted|is to be submitted|are to be submitted|"
+    r"will be (?:provided|submitted|furnished)|certify)\b(?!\s+not\b)",
     re.I,
 )
 _NUM_WORDS = "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|ninety|hundred"
