@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "personal-ai-command-center",
+	"name": "workflows-starter-template",
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-10-08",
 	"assets": {
