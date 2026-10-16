@@ -70,7 +70,13 @@
 	"migrations": [
 		{
 			"tag": "v1",
-			"new_sqlite_classes": ["CommandCenterDO"]
+			"new_sqlite_classes": ["WorkflowStatusDO"]
+		},
+		{
+			"tag": "v2",
+			"renamed_classes": [
+				{ "from": "WorkflowStatusDO", "to": "CommandCenterDO" }
+			]
 		}
 	],
 	"upload_source_maps": true
