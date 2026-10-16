@@ -16,6 +16,14 @@
 	"observability": {
 		"enabled": true
 	},
+	"previews": {
+		"vars": {
+			"AI_MODEL": "@cf/meta/llama-3.1-8b-instruct"
+		},
+		"ai": {
+			"binding": "AI"
+		}
+	},
 	/**
 	 * Workers AI - the brain of your AI workers
 	 * https://developers.cloudflare.com/workers-ai/
@@ -61,7 +69,13 @@
 	"migrations": [
 		{
 			"tag": "v1",
-			"new_sqlite_classes": ["CommandCenterDO"]
+			"new_sqlite_classes": ["WorkflowStatusDO"]
+		},
+		{
+			"tag": "v2",
+			"renamed_classes": [
+				{ "from": "WorkflowStatusDO", "to": "CommandCenterDO" }
+			]
 		}
 	],
 	"upload_source_maps": true
