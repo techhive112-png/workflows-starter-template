@@ -25,6 +25,31 @@ CLOSEOUT_TERMS = re.compile(
     r"guarant(?:ee|eed|ees|y)|demonstration of (?:the )?(?:system|equipment)s?)(?![\w])",
     re.I,
 )
+# A submission verb and a document noun in the same sentence: "Friction tests shall be submitted",
+# "the Contractor shall provide a supplemental COA". Catches deliverables the keyword list misses.
+_DOC = (r"COAs?|COCs?|certificates?|certifications?|(?:test|inspection|calibration|analysis|field|final)\s+reports?|"
+        r"tests|test\s+data|test\s+results|documentation\s+of\s+(?:the\s+)?tests?")
+_SUBMIT_ACTIVE = r"submit|submits|furnish|furnishes|provide|provides"
+_SUBMIT_PASSIVE = r"submitted|furnished|provided"
+DELIVERABLE = re.compile(
+    rf"\b(?:{_SUBMIT_ACTIVE})\b(?P<gap>(?:\W+\w+){{0,14}}?)\W+(?:{_DOC})\b|"
+    rf"\b(?:{_DOC})\b(?:\W+\w+){{0,10}}?\W+(?:be|are|is)\s+(?:{_SUBMIT_PASSIVE})\b",
+    re.I,
+)
+# "furnish instruments ... required for the tests": the tests are not what is handed over
+_NOT_OBJECT = re.compile(r"\b(?:for|during|after|before|until|required for)\s+(?:the\s+|all\s+|each\s+)?$", re.I)
+
+
+def has_deliverable(text: str) -> bool:
+    for m in DELIVERABLE.finditer(text):
+        if m.group("gap") is not None:
+            doc_start = m.start() + len(m.group(0)) - len(re.search(rf"(?:{_DOC})$", m.group(0), re.I).group(0))
+            if _NOT_OBJECT.search(text[max(0, doc_start - 30):doc_start]):
+                continue
+        return True
+    return False
+
+
 # Closeout words used in a sense that is not a deliverable; removed before keyword matching.
 NON_DELIVERABLE = re.compile(
     r"certificates? of deposit|bid (?:guarant\w*|bonds?|security)|proposal guarant\w*|guarantee (?:the )?completion|"
@@ -96,7 +121,8 @@ class SectionState:
     closeout_ctx: bool = False     # inside a CLOSEOUT SUBMITTALS / WARRANTY article
 
 
-NOTE_DELIM = re.compile(r"^\s*[\[\]]?\s*\*{10,}[\s.\[\]]*$")   # "*****.", UFGS "] *****"
+# "*****.", UFGS "] *****", and FAA "*****6" where the next line's first character got glued on
+NOTE_DELIM = re.compile(r"^\s*[\[\]]?\s*\*{10,}[\s.\[\]]*(?P<tail>[\w.-]{0,4})\s*$")
 # UFGS submittal register: items listed under these SD categories are closeout deliverables
 SD_HEADING = re.compile(r"^\s*[\[\]]*\s*(SD-(\d{2})\s+[A-Z][A-Za-z'’ &/-]+?)\s*\]?\s*$")
 SD_CATEGORY = {"06": "Testing / Reports / Certification", "07": "Testing / Reports / Certification",
@@ -130,13 +156,18 @@ def strip_editor_notes(text: str, state: SectionState) -> tuple[str, int]:
     """
     segments: list[list[str]] = [[]]
     footers: list[str] = []
+    carry = ""
     for line in (text or "").splitlines():
-        if NOTE_DELIM.match(line):
+        m = NOTE_DELIM.match(line)
+        if m:
             segments.append([])
-        elif PAGE_FOOTER.match(line):
-            out_footer = line      # keep for section detection, outside the note logic
+            carry = m.group("tail") or ""
+            continue
+        if carry and line.strip():
+            line, carry = carry + line.lstrip(), ""
+        if PAGE_FOOTER.match(line):   # keep for section detection, outside the note logic
             segments[-1].append("")
-            footers.append(out_footer)
+            footers.append(line)
         else:
             segments[-1].append(line)
     out, dropped, prev_note = [], 0, state.in_note
@@ -254,7 +285,8 @@ def extract_requirements(text: str, source: str, page: int, state: SectionState,
             continue
         probe = span.replace("’", "'")
         implied = state.closeout_ctx and re.match(r"(?:[A-Z]|\d{1,2})\.\s", span)
-        if not implied and not CLOSEOUT_TERMS.search(NON_DELIVERABLE.sub(" ", probe)):
+        cleaned = NON_DELIVERABLE.sub(" ", probe)
+        if not implied and not CLOSEOUT_TERMS.search(cleaned) and not has_deliverable(cleaned):
             continue
         hits += 1
         if CLARIFICATION.search(probe) or not (implied or OBLIGATION.search(probe)):

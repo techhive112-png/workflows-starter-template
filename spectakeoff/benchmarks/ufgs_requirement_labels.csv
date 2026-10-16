@@ -151,3 +151,4 @@ UFGS_23_05_93.pdf,15,requirement,true_positive,SD submittal register item,"Phase
 UFGS_23_05_93.pdf,15,requirement,true_positive,SD submittal register item,"Phase [2][_____] Pre-Final DALT Report; G, [____]"
 UFGS_23_05_93.pdf,15,requirement,true_positive,SD submittal register item,"Pre-Final DALT Report; G, [____]"
 UFGS_23_05_93.pdf,15,requirement,false_positive,editor's note fragment,CONSTRUCTION. Retain the single submittal item
+UFGS_26_20_00.pdf,80,requirement,true_positive,test data / COA / certificate submission (submit-verb + document detector),Furnish test equipment and personnel and submit written copies of test results.

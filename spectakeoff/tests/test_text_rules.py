@@ -175,3 +175,15 @@ def test_section_reference_after_line_break_is_not_a_heading():
     assert st.section == "23 05 93"
     st = detect_section("text\n                 SECTION 23 05 93  Page 14", SectionState())
     assert (st.section, st.title) == ("23 05 93", "")
+
+
+def test_note_delimiter_with_glued_character_closes_note():
+    from spectakeoff.specs import strip_editor_notes
+
+    star = "*" * 80
+    page = "\n".join([star, "The Engineer should specify the desired properties.", star + "6",
+                      "23-2.3 Water. Water shall be from potable sources.",
+                      "The Contractor shall submit to the RPR friction tests from previous projects."])
+    text, _ = strip_editor_notes(page, SectionState())
+    assert "Engineer should specify" not in text
+    assert "623-2.3 Water." in text and "friction tests" in text
