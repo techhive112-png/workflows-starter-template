@@ -100,3 +100,4 @@ class SourceResult:
     findings: list[Finding] = field(default_factory=list)
     error: str = ""
     elapsed: float = 0.0
+    llm: dict = field(default_factory=dict)   # token usage of the optional --llm pass

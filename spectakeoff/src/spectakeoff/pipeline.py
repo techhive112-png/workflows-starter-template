@@ -11,7 +11,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from spectakeoff.models import (CANDIDATE, DRAWING_TEXT, NONE, OCR_DRAWING, OCR_PAGE, PDF_TABLE, PDF_TEXT,
+from spectakeoff.models import (REQUIREMENT, CANDIDATE, DRAWING_TEXT, NONE, OCR_DRAWING, OCR_PAGE, PDF_TABLE, PDF_TEXT,
                                 PDF_VECTOR, REVIEW, SCHEDULE_ROW, TOKEN, VISUAL_REVIEW, BBox, Finding, PageRecord,
                                 SourceResult)
 from spectakeoff.ocr import OcrUnavailable, detect_rotation, ocr_words, resolve_languages
@@ -44,6 +44,9 @@ class Config:
     min_span: int = 18
     max_span: int = 1600
     keep_text: bool = False             # keep raw page text on PageRecord (labelling)
+    llm: bool = False                   # optional language-model pass (sends candidate sentences out)
+    llm_model: str = ""
+    llm_cache: Path | None = None
 
 
 @dataclass
@@ -57,6 +60,7 @@ class _Ctx:
     lang: str = ""
     lang_error: str = ""
     translate_cache: dict = field(default_factory=dict)
+    llm_queue: list = field(default_factory=list)
 
 
 def sha(s: str | bytes) -> str:
@@ -87,6 +91,13 @@ def _add_requirements(ctx: _Ctx, rec: PageRecord, text: str, method: str, conf: 
     found, hits = extract_requirements(text, ctx.source, rec.page, ctx.state, rec.sha256, method, conf,
                                        ctx.cfg.min_span, ctx.cfg.max_span)
     have = {f.text.casefold() for f in found}
+    if ctx.cfg.llm:   # sentences the rules skipped but that could be deliverables
+        from spectakeoff.llm import is_candidate
+        from spectakeoff.specs import split_spans
+
+        for span in split_spans(text):
+            if span.casefold() not in have and is_candidate(span):
+                ctx.llm_queue.append((rec, span, ctx.state.section, ctx.state.title, method, conf))
     found += [f for f in extract_submittal_register(text, ctx.source, rec.page, ctx.state, rec.sha256, method,
                                                     conf) if f.text.casefold() not in have]
     if ctx.state.section:
@@ -380,8 +391,30 @@ def process_source(path: Path, cfg: Config) -> tuple[SourceResult, dict[str, int
                 res.pages.append(rec)
     else:
         raise ValueError(f"Unsupported file type: {path.suffix}")
+    if ctx.llm_queue:
+        _run_llm(ctx)
     res.elapsed = time.time() - start
     return res, dict(ctx.hits)
+
+
+def _run_llm(ctx: _Ctx) -> None:
+    from spectakeoff.llm import DEFAULT_MODEL, Classifier
+    from spectakeoff.specs import classify, division_of
+
+    known = {(f.page, f.text.casefold()) for f in ctx.result.findings}
+    queue = [q for q in ctx.llm_queue if (q[0].page, q[1].casefold()) not in known]
+    clf = Classifier(ctx.cfg.llm_model or DEFAULT_MODEL, ctx.cfg.llm_cache)
+    for (rec, span, sec, title, method, conf), yes in zip(queue, clf.classify([q[1] for q in queue])):
+        if not yes:
+            continue
+        f = Finding(kind=REQUIREMENT, source_file=ctx.source, page=rec.page, text=span,
+                    method=f"Language model ({clf.model})", category=classify(span), section=sec,
+                    section_title=title, division=division_of(sec), confidence=conf, status=REVIEW,
+                    page_sha256=rec.sha256)
+        f.flag("Found by the language model, not by the rules - verify against the page")
+        ctx.result.findings.append(f)
+        rec.findings += 1
+    ctx.result.llm = {"model": clf.model, **clf.stats.__dict__}
 
 
 def assign_ids(results: list[SourceResult]) -> None:

@@ -8,7 +8,7 @@ Katrai atrastajai vērtībai ir avota fails, lapa, apgabals lapā un oriģināla
 
 | Joma | 3.1 | 4.0 |
 |---|---|---|
-| Struktūra | viens 340 rindu skripts | Python pakotne (`src/spectakeoff`), CLI, 38 automātiskie testi |
+| Struktūra | viens 340 rindu skripts | Python pakotne (`src/spectakeoff`), CLI, 41 automātiskais tests |
 | Ievade | tikai PDF | PDF + attēli (PNG, JPG, TIFF ar vairākām lapām, WEBP, BMP) |
 | Lapas tipa noteikšana | nav | specifikācijas teksts / vektoru rasējums / rastra rasējums / skenēts teksts / foto / tukša |
 | Vektoru PDF rasējumi | apstrādāti kā teksts | precīzs teksts ar koordinātām tieši no PDF, bez OCR |
@@ -63,6 +63,24 @@ pump,6,J. Bērziņš,P-201
 ```
 
 Rindas bez `verified_by` tiek ignorētas — nepārbaudīts skaits nekad netiek reizināts.
+
+### Valodas modeļa pārbaude (`--llm`, pēc izvēles)
+
+```bash
+export ANTHROPIC_API_KEY=...
+spectakeoff projekts.pdf --llm                              # claude-opus-5-5
+spectakeoff projekts.pdf --llm --llm-model claude-haiku-5-5 # ~40x lētāk
+```
+
+Palielina pārklājumu: modelim tiek sūtīti **tikai** teikumi, kurus noteikumi neatrada, bet kuros ir
+pienākuma vārds/saraksta punkts un dokumenta lietvārds (ne veselas lapas). 80 teikumi vienā
+pieprasījumā, atbilde ir tikai "jā" rindu numuri; atbildes tiek kešotas
+(`~/.cache/spectakeoff/llm_cache.json`), atkārtota palaišana ir bez maksas. Citāts vienmēr ir
+oriģinālais teikums. Modeļa atradumi ir statusā PĀRBAUDĪT ar piezīmi. Aptuveni FAA 727 lapām:
+~95k ievades tokenu (≈ $0,6 ar Opus 5.5, ≈ $0,02 ar Haiku 5.5). **Teksts tiek nosūtīts Anthropic** —
+konfidenciāliem dokumentiem tikai ar klienta atļauju. Tokenu patēriņš ir `*.run_report.json` laukā `llm`.
+Šajā vidē API atslēgas nebija, tāpēc reālais pārklājuma pieaugums vēl nav izmērīts — izmēri ar
+`spectakeoff label` / `eval`.
 
 ### Izvade
 

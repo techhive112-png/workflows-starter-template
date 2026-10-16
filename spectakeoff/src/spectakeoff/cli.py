@@ -39,7 +39,7 @@ def write_outputs(out: Path, results: list[SourceResult], hits: dict[str, int], 
         "findings_json": str(findings_path),
         "sources": [{"source": r.source, "sha256": r.sha256, "pages": len(r.pages), "findings": len(r.findings),
                      "pages_review": sum(1 for p in r.pages if p.status == "REVIEW"),
-                     "elapsed_seconds": round(r.elapsed, 2), "error": r.error} for r in results],
+                     "elapsed_seconds": round(r.elapsed, 2), "error": r.error, "llm": r.llm} for r in results],
         "conflicts_flagged": conflicts, "calculation_rows": len(calc),
         "status": "Excel integrity validation passed; content accuracy not certified",
     })
@@ -70,7 +70,11 @@ def cmd_run(a: argparse.Namespace) -> int:
         return 2
     base = Config(ocr=a.ocr, ocr_lang=a.ocr_lang, ocr_min_chars=a.ocr_min_chars, page_ocr_min_conf=a.page_min_conf,
                   word_min_conf=a.word_min_conf, dpi=a.dpi, rotations=rotations, overlays=a.overlays,
-                  tables=a.tables, translate_to=a.translate or "")
+                  tables=a.tables, translate_to=a.translate or "", llm=a.llm, llm_model=a.llm_model,
+                  llm_cache=Path(a.llm_cache).expanduser() if a.llm_cache else
+                  Path.home() / ".cache" / "spectakeoff" / "llm_cache.json")
+    if a.llm:
+        print("NOTE: --llm sends candidate sentences (not whole pages) to the Anthropic API.", file=sys.stderr)
     meta = {k: (str(v) if isinstance(v, Path) else v) for k, v in vars(a).items() if k != "func"}
     if a.out:   # one combined workbook: cross-file conflicts and calculations
         groups = [(Path(a.out).expanduser().resolve(), sources)]
@@ -215,6 +219,10 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--counts", help="estimator CSV item,count,verified_by[,source] for R8 calculations")
     r.add_argument("--translate", metavar="LANG", help="best-effort online translation of requirements "
                    "(sends text to a third party)")
+    r.add_argument("--llm", action="store_true", help="extra recall pass with a Claude model; sends candidate "
+                   "sentences to the Anthropic API (needs ANTHROPIC_API_KEY)")
+    r.add_argument("--llm-model", default="", help="model id (default claude-opus-5-5; claude-haiku-5-5 is far cheaper)")
+    r.add_argument("--llm-cache", help="answer cache file (default ~/.cache/spectakeoff/llm_cache.json)")
     r.add_argument("--continue-on-error", action="store_true")
     r.set_defaults(func=cmd_run)
     lb = sub.add_parser("label", help="create a gold-set workbook to label by hand (Jā/Nē)")
