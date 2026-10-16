@@ -67,6 +67,7 @@ Rindas bez `verified_by` tiek ignorētas — nepārbaudīts skaits nekad netiek 
 ### Valodas modeļa pārbaude (`--llm`, pēc izvēles)
 
 ```bash
+pip install -e .[llm]  # vienreiz: Anthropic SDK
 spectakeoff key        # vienreiz: ielīmē atslēgu (sk-ant-api03-…), tā tiek pārbaudīta un saglabāta
                        # ~/.config/spectakeoff/api_key (tikai tev lasāma); --status, --remove
 spectakeoff projekts.pdf --llm                              # claude-opus-5-5

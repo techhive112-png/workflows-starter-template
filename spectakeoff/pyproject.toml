@@ -19,7 +19,8 @@ dependencies = [
 
 [project.optional-dependencies]
 translate = ["deep-translator>=1.11"]
-dev = ["pytest>=8"]
+llm = ["anthropic>=0.40"]
+dev = ["pytest>=8", "anthropic>=0.40"]
 
 [project.scripts]
 spectakeoff = "spectakeoff.cli:main"
