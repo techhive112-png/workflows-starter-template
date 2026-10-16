@@ -32,10 +32,9 @@
 	 *   OWNER_TOKEN - your private password for the Command Center (16+ chars)
 	 *   Set with: npx wrangler secret put OWNER_TOKEN
 	 *   Local dev: put OWNER_TOKEN=... in .dev.vars
+	 * Not listed under "secrets.required": that check blocks deploys, and the
+	 * Worker already refuses every request while OWNER_TOKEN is unset.
 	 */
-	"secrets": {
-		"required": ["OWNER_TOKEN"]
-	},
 	/**
 	 * Workflows - one durable run per task
 	 * https://developers.cloudflare.com/workflows/
