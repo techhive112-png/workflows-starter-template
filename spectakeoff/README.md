@@ -68,21 +68,21 @@ Rindas bez `verified_by` tiek ignorētas — nepārbaudīts skaits nekad netiek 
 
 ```bash
 pip install -e .[llm]  # vienreiz: Anthropic SDK
-spectakeoff key        # vienreiz: ielīmē atslēgu (sk-ant-api03-…), tā tiek pārbaudīta un saglabāta
-                       # ~/.config/spectakeoff/api_key (tikai tev lasāma); --status, --remove
-spectakeoff projekts.pdf --llm                              # claude-opus-5-5
-spectakeoff projekts.pdf --llm --llm-model claude-haiku-5-5 # ~40x lētāk
+spectakeoff key        # vienreiz: ielīmē atslēgu (sk-ant-api03-… vai sk-ant-usr-…), tā tiek pārbaudīta
+                       # un saglabāta ~/.config/spectakeoff/api_key (tikai tev lasāma); --status, --remove
+spectakeoff projekts.pdf --llm                              # claude-haiku-5-5
+spectakeoff projekts.pdf --llm --llm-model claude-opus-5-5  # cits modelis
 ```
 
 Palielina pārklājumu: modelim tiek sūtīti **tikai** teikumi, kurus noteikumi neatrada, bet kuros ir
 pienākuma vārds/saraksta punkts un dokumenta lietvārds (ne veselas lapas). 80 teikumi vienā
 pieprasījumā, atbilde ir tikai "jā" rindu numuri; atbildes tiek kešotas
 (`~/.cache/spectakeoff/llm_cache.json`), atkārtota palaišana ir bez maksas. Citāts vienmēr ir
-oriģinālais teikums. Modeļa atradumi ir statusā PĀRBAUDĪT ar piezīmi. Aptuveni FAA 727 lapām:
-~95k ievades tokenu (≈ $0,6 ar Opus 5.5, ≈ $0,02 ar Haiku 5.5). **Teksts tiek nosūtīts Anthropic** —
-konfidenciāliem dokumentiem tikai ar klienta atļauju. Tokenu patēriņš ir `*.run_report.json` laukā `llm`.
-Šajā vidē API atslēgas nebija, tāpēc reālais pārklājuma pieaugums vēl nav izmērīts — izmēri ar
-`spectakeoff label` / `eval`.
+oriģinālais teikums. Modeļa atradumi ir statusā PĀRBAUDĪT ar piezīmi. FAA 727 lapām izmērīts
+~116k ievades tokenu. **Teksts tiek nosūtīts Anthropic** — konfidenciāliem dokumentiem tikai ar
+klienta atļauju. Tokenu patēriņš ir `*.run_report.json` laukā `llm`.
+Izmērītais pārklājums un precizitāte (Haiku un Opus) ir `benchmarks/llm_results.md`: Haiku atrod
+vairāk prasību, bet pievieno arī dažas kļūdainas rindas, tāpēc `--llm` atradumi jāpārbauda.
 
 ### Izvade
 

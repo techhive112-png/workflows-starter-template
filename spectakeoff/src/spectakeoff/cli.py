@@ -263,7 +263,7 @@ def build_parser() -> argparse.ArgumentParser:
                    "(sends text to a third party)")
     r.add_argument("--llm", action="store_true", help="extra recall pass with a Claude model; sends candidate "
                    "sentences to the Anthropic API (run `spectakeoff key` once, or set ANTHROPIC_API_KEY)")
-    r.add_argument("--llm-model", default="", help="model id (default claude-opus-5-5; claude-haiku-5-5 is far cheaper)")
+    r.add_argument("--llm-model", default="", help="model id (default claude-haiku-5-5; e.g. claude-opus-5-5)")
     r.add_argument("--llm-cache", help="answer cache file (default ~/.cache/spectakeoff/llm_cache.json)")
     r.add_argument("--continue-on-error", action="store_true")
     r.set_defaults(func=cmd_run)

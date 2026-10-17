@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-DEFAULT_MODEL = "claude-opus-5-5"
+DEFAULT_MODEL = "claude-haiku-5-5"   # measured best recall; see benchmarks/llm_results.md
 PROMPT_VERSION = "2"
 BATCH = 80
 MAX_CHARS = 300
