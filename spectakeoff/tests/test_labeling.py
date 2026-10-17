@@ -153,3 +153,21 @@ def test_eval_warns_and_fails_cleanly_when_source_missing(tmp_path):
     fill(wb_path)
     pdf.unlink()
     assert main(["eval", str(wb_path)]) == 2
+
+
+def test_bad_inputs_give_a_message_not_a_crash(tmp_path, capsys):
+    gold = tmp_path / "gold.csv"
+    gold.write_text("source,page,text\na.pdf,,The Contractor shall submit the O&M manual.\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="lapas numura"):
+        read_gold(gold)
+    gold.write_text("file,text\na.pdf,x\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="kolonnas"):
+        read_gold(gold)
+    broken = tmp_path / "x.findings.json"
+    broken.write_text("{not json", encoding="utf-8")
+    good = tmp_path / "ok.csv"
+    good.write_text("source,page,text\na.pdf,1,Submit the O&M manual.\n", encoding="utf-8")
+    assert main(["eval", str(broken), str(good)]) == 2
+    assert main(["label", str(good), "--pages", "3-"]) == 2
+    err = capsys.readouterr().err
+    assert "findings.json" in err and "--pages" in err

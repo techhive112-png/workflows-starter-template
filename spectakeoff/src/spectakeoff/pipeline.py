@@ -405,8 +405,9 @@ def _run_llm(ctx: _Ctx) -> None:
     queue = [q for q in ctx.llm_queue if (q[0].page, q[1].casefold()) not in known]
     clf = Classifier(ctx.cfg.llm_model or DEFAULT_MODEL, ctx.cfg.llm_cache)
     for (rec, span, sec, title, method, conf), yes in zip(queue, clf.classify([q[1] for q in queue])):
-        if not yes:
+        if not yes or (rec.page, span.casefold()) in known:   # same sentence twice on a page -> one row
             continue
+        known.add((rec.page, span.casefold()))
         f = Finding(kind=REQUIREMENT, source_file=ctx.source, page=rec.page, text=span,
                     method=f"Language model ({clf.model})", category=classify(span), section=sec,
                     section_title=title, division=division_of(sec), confidence=conf, status=REVIEW,

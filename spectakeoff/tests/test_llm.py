@@ -55,3 +55,34 @@ def test_response_without_text_block_keeps_rules_only_result():
     clf = Classifier("claude-test", None, client=SimpleNamespace(messages=NoText()))
     assert clf.classify(["The Contractor shall submit the test report."]) == [False]
     assert "no text block" in clf.stats.errors[0]
+
+
+def test_same_sentence_twice_on_a_page_gives_one_row(monkeypatch):
+    import spectakeoff.llm as llm
+    from spectakeoff.models import PageRecord, SourceResult
+    from spectakeoff.pipeline import Config, _Ctx, _run_llm
+
+    class FakeClassifier:
+        def __init__(self, model, cache):
+            self.model, self.stats = model, llm.LlmStats()
+
+        def classify(self, texts):
+            return [True] * len(texts)
+
+    monkeypatch.setattr(llm, "Classifier", FakeClassifier)
+    rec = PageRecord("a.pdf", 3, "spec_text", "PDF text layer")
+    ctx = _Ctx(Config(llm=True), "a.pdf", "a", SourceResult("a.pdf", ""))
+    span = "Other sources shall be tested in accordance with ASTM C1602 prior to use."
+    ctx.llm_queue = [(rec, span, "", "", "PDF text layer", None)] * 2
+    _run_llm(ctx)
+    assert len(ctx.result.findings) == 1 and rec.findings == 1
+
+
+def test_failed_llm_batches_are_reported_to_the_user():
+    from spectakeoff.cli import llm_warning
+    from spectakeoff.models import SourceResult
+
+    ok = SourceResult("a.pdf", "", llm={"model": "m", "requests": 2, "errors": []})
+    bad = SourceResult("a.pdf", "", llm={"model": "m", "requests": 0, "errors": ["BadRequestError: credit balance"]})
+    assert llm_warning(ok) == "" and llm_warning(SourceResult("a.pdf", "")) == ""
+    assert "1 pieprasījum" in llm_warning(bad) and "credit balance" in llm_warning(bad)

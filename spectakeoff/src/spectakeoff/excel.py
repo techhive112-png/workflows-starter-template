@@ -181,7 +181,12 @@ def build_workbook(out: Path, results: list[SourceResult], calc_rows: list[list[
         ("Rows certified correct", 0),
         ("Accuracy claim", "Not certified; every row requires human review."),
         ("Delivery gate", "Do not deliver as a final takeoff until the review queue and source pages are checked."),
-    ] + [(r.source + " SHA-256", r.sha256) for r in results]
+    ] + [(r.source + " SHA-256", r.sha256) for r in results] + [
+        (r.source + " language model",
+         f"{r.llm.get('model', '')}: {r.llm.get('requests', 0)} request(s), "
+         f"{len(r.llm.get('errors') or [])} failed"
+         + (" — failed sentences were checked by the rules only" if r.llm.get("errors") else ""))
+        for r in results if r.llm]
     S.add(t("sheet.summary"), [t("col.metric"), t("col.v")], summary, [34, 110])
     S.add(t("sheet.requirements"), hdr, by(REQUIREMENT), WIDTHS, status_col)
     S.add(t("sheet.drawing_text"), hdr, by(DRAWING_TEXT), WIDTHS, status_col)

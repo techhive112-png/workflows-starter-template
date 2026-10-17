@@ -88,10 +88,10 @@ def read_gold(path: Path) -> tuple[list[dict], dict]:
             if None in (cs, cp, ct, cl):
                 raise ValueError("Etalona lapā trūkst kolonnu Fails / Lapa / Teksts / Prasība?")
             rows = []
-            for r in it:
+            for n, r in enumerate(it, start=2):
                 if r is None or r[ct] in (None, ""):
                     continue
-                rows.append({"source": str(r[cs]), "page": int(r[cp]), "text": str(r[ct]),
+                rows.append({"source": str(r[cs]), "page": _page_number(r[cp], n), "text": str(r[ct]),
                              "label": parse_label(r[cl]), "note": str(r[cn] or "") if cn is not None else "",
                              "kind": "requirement"})
         finally:
@@ -99,10 +99,20 @@ def read_gold(path: Path) -> tuple[list[dict], dict]:
         return rows, meta
     with open(path, newline="", encoding="utf-8-sig") as fh:
         raw = [{(k or "").strip().lower(): (v or "").strip() for k, v in row.items()} for row in csv.DictReader(fh)]
-    rows = [{"source": r["source"], "page": int(r["page"]), "text": r["text"],
+    if raw and not {"source", "page", "text"} <= set(raw[0]):
+        raise ValueError("CSV etalonā vajag kolonnas source, page, text")
+    rows = [{"source": r["source"], "page": _page_number(r["page"], n), "text": r["text"],
              "label": parse_label(r["label"]) if "label" in r else "yes",
-             "note": r.get("reason", r.get("note", "")), "kind": r.get("kind", "")} for r in raw]
+             "note": r.get("reason", r.get("note", "")), "kind": r.get("kind", "")}
+            for n, r in enumerate(raw, start=2)]
     return rows, {}
+
+
+def _page_number(v, row: int) -> int:
+    try:
+        return int(float(str(v).strip()))
+    except (TypeError, ValueError):
+        raise ValueError(f"Etalona rindā {row} nav derīga lapas numura ({v!r})") from None
 
 
 def evaluate(findings: list[dict], gold: list[dict], threshold: float = 0.85, kind: str = "") -> dict:

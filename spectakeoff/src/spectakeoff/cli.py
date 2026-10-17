@@ -48,6 +48,15 @@ def write_outputs(out: Path, results: list[SourceResult], hits: dict[str, int], 
     return report
 
 
+def llm_warning(r: SourceResult) -> str:
+    """Tell the user when --llm batches failed: those sentences were only checked by the rules."""
+    errors = (r.llm or {}).get("errors") or []
+    if not errors:
+        return ""
+    return (f"BRĪDINĀJUMS: --llm: {len(errors)} pieprasījum(i) neizdevās ({r.source}); šie teikumi pārbaudīti "
+            f"tikai ar noteikumiem. Pirmā kļūda: {errors[0]}")
+
+
 def cmd_run(a: argparse.Namespace) -> int:
     sources = [Path(s).expanduser().resolve() for s in a.inputs]
     missing = [str(s) for s in sources if not s.is_file()]
@@ -111,6 +120,8 @@ def cmd_run(a: argparse.Namespace) -> int:
             results.append(r)
             print(f"  pages: {len(r.pages)} | findings: {len(r.findings)} | "
                   f"pages to review: {sum(1 for p in r.pages if p.status == 'REVIEW')} | {r.elapsed:.1f}s", flush=True)
+            if llm_warning(r):
+                print("  " + llm_warning(r), file=sys.stderr, flush=True)
         assign_ids(results)
         try:
             rep = write_outputs(out, results, hits, cfg, Path(a.counts) if a.counts else None, a.lang, meta)
@@ -140,6 +151,13 @@ def cmd_label(a: argparse.Namespace) -> int:
         print("Not found: " + ", ".join(missing), file=sys.stderr)
         return 2
     out = Path(a.out).expanduser().resolve()
+    try:
+        from spectakeoff.labeling import parse_pages
+
+        parse_pages(a.pages)
+    except ValueError:
+        print(f"Nederīgs --pages {a.pages!r}; piemērs: 3,7-9", file=sys.stderr)
+        return 2
     rep = build_label_workbook(sources, out, _config_from(a), a.sample, a.pages, a.seed, a.show_predictions)
     print(f"Etalona fails: {rep['output']}\n  lapas: {rep['pages']} (no {rep['eligible_pages']} ar tekstu) | "
           f"rindas atzīmēšanai: {rep['rows']}\n  Atzīmē kolonnu 'Prasība?' ar Jā/Nē, tad: spectakeoff eval {out.name}")
@@ -162,7 +180,11 @@ def cmd_eval(a: argparse.Namespace) -> int:
         print(f"Etalona kļūda: {exc}", file=sys.stderr)
         return 2
     if findings_path is not None:
-        findings = json.loads(findings_path.read_text(encoding="utf-8"))["findings"]
+        try:
+            findings = json.loads(findings_path.read_text(encoding="utf-8"))["findings"]
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            print(f"Nevar nolasīt {findings_path} (vajag SpecTakeoff *.findings.json): {exc}", file=sys.stderr)
+            return 2
     else:   # re-run the tool on the documents recorded in the labelling workbook
         if not meta.get("sources"):
             print("Etalonā nav avota failu saraksta - norādi arī findings.json", file=sys.stderr)
