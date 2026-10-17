@@ -9,6 +9,7 @@ import stat
 from pathlib import Path
 
 KEY_FILE = Path(os.environ.get("SPECTAKEOFF_HOME", Path.home() / ".config" / "spectakeoff")) / "api_key"
+API_PREFIXES = ("sk-ant-api", "sk-ant-usr")   # Console keys: organisation keys and user-linked keys
 
 
 def normalise(raw: str) -> str:
@@ -23,10 +24,10 @@ def problem(key: str) -> str:
     if not key:
         return "Atslēga ir tukša."
     if not key.startswith("sk-ant-"):
-        return "Tā nav Anthropic atslēga (tai jāsākas ar sk-ant-api03-)."
-    if not key.startswith("sk-ant-api"):
+        return "Tā nav Anthropic atslēga (tai jāsākas ar sk-ant-api03- vai sk-ant-usr-)."
+    if not key.startswith(API_PREFIXES):
         return (f"Šī ir '{key[:10]}…' tipa atslēga, nevis API atslēga. Izveido to vietnē "
-                "console.anthropic.com → API Keys → Create Key; tai jāsākas ar sk-ant-api03-.")
+                "platform.claude.com → API Keys → Create key; tai jāsākas ar sk-ant-api03- vai sk-ant-usr-.")
     return ""
 
 
@@ -70,5 +71,14 @@ def verify(key: str, client=None) -> str:
         return "Anthropic noraidīja atslēgu (nederīga, izdzēsta vai beidzies termiņš)."
     except anthropic.PermissionDeniedError:
         return "Atslēgai nav atļaujas (pārbaudi kredītu un limitus Console → Billing)."
+    except anthropic.BadRequestError as exc:
+        msg = str(exc).casefold()
+        if "credit balance" in msg:
+            return ("Atslēga ir derīga, bet kontā nav kredīta. Papildini to Console → Plans & Billing tajā "
+                    "pašā organizācijā, kurai pieder atslēga.")
+        if "workspace" in msg:
+            return ("Atslēga nav piesaistīta darbvietai (workspace). Izveido jaunu atslēgu kādā darbvietā: "
+                    "platform.claude.com → API Keys → Create key.")
+        return f"Neizdevās pārbaudīt: {type(exc).__name__}"
     except anthropic.APIError as exc:
         return f"Neizdevās pārbaudīt: {type(exc).__name__}"

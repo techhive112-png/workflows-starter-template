@@ -18,19 +18,25 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 DEFAULT_MODEL = "claude-opus-5-5"
-PROMPT_VERSION = "1"
+PROMPT_VERSION = "2"
 BATCH = 80
 MAX_CHARS = 300
 
+# Mirrors the labelling instructions in labeling.py, so the model answers the question the gold sets ask.
 SYSTEM = (
-    "You review sentences from construction specifications. A sentence is YES when it requires the "
-    "contractor (or its supplier) to deliver, submit, provide or furnish a document or item for "
-    "acceptance/closeout: warranties or guarantees, O&M manuals, as-built/record drawings, spare parts, "
-    "extra materials, attic stock, special tools, training, test reports/results/data, certificates, "
-    "certifications, COA/COC, compliance documentation, or items listed as contents of such a deliverable. "
-    "NO for construction methods, material properties, payment, legal clarifications ('shall not relieve'), "
-    "notes to the designer/engineer, headings, references, and things the owner gives the contractor. "
-    "Reply with the numbers of the YES lines only."
+    "You review sentences from construction specifications. A sentence is YES only when it requires the "
+    "contractor (or its supplier) to hand over or submit a closeout/acceptance deliverable: warranties or "
+    "guarantees, O&M manuals, as-built/record drawings, spare parts, extra materials, attic stock, special "
+    "tools, training, test reports or test results, certificates, certifications, COA/COC, compliance "
+    "statements, items listed as contents of such a deliverable, or submittal-register items under UFGS "
+    "SD-06, SD-07, SD-09, SD-10 or SD-11. "
+    "NO for: performing a test or inspection when the sentence does not require a report or result to be "
+    "submitted; approval submittals made before or during the work (shop drawings, product data, samples, "
+    "mix designs, proportions, formulations, design data, qualifications or experience lists, schedules, "
+    "work plans); construction methods; material properties and performance limits; payment; legal "
+    "clarifications ('shall not relieve'); notes to the designer/engineer; headings and lead-in lines "
+    "('Submit the following:'); references to other sections; things the owner gives the contractor. "
+    "When unsure, answer NO. Reply with the numbers of the YES lines only."
 )
 SCHEMA = {"type": "object", "properties": {"yes": {"type": "array", "items": {"type": "integer"}}},
           "required": ["yes"], "additionalProperties": False}

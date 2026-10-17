@@ -17,8 +17,30 @@ def test_normalise_undoes_editor_damage():
 
 def test_problem_explains_wrong_key_types():
     assert keystore.problem("sk-ant-api03-x") == ""
-    assert "API atslēga" in keystore.problem("sk-ant-usr-x")
+    assert keystore.problem("sk-ant-usr-x") == ""          # user-linked Console keys work with the API
+    assert "API atslēga" in keystore.problem("sk-ant-oat01-x")
     assert keystore.problem("hello")
+
+
+def _bad_request(message):
+    import anthropic
+
+    exc = anthropic.BadRequestError.__new__(anthropic.BadRequestError)   # no HTTP response needed offline
+    Exception.__init__(exc, message)
+    return exc
+
+
+@pytest.mark.parametrize("message,expected", [
+    ("Your credit balance is too low to access the Anthropic API.", "kredīta"),
+    ("This API key is not scoped to a workspace, so this request must include ...", "darbvietai"),
+])
+def test_verify_explains_billing_and_workspace(message, expected):
+    from types import SimpleNamespace
+
+    def create(**_kw):
+        raise _bad_request(message)
+
+    assert expected in keystore.verify("sk-ant-usr-x", client=SimpleNamespace(messages=SimpleNamespace(create=create)))
 
 
 def test_save_is_private_and_loaded(monkeypatch):
@@ -30,8 +52,8 @@ def test_save_is_private_and_loaded(monkeypatch):
     assert keystore.remove() and not p.exists()
 
 
-def test_key_command_rejects_usr_token_without_network(monkeypatch, capsys):
-    monkeypatch.setattr("getpass.getpass", lambda _p: "Sk-ant-usr-secret")
+def test_key_command_rejects_oauth_token_without_network(monkeypatch, capsys):
+    monkeypatch.setattr("getpass.getpass", lambda _p: "Sk-ant-oat01-secret")
     assert cli.main(["key"]) == 1
     out = capsys.readouterr()
     assert "secret" not in out.out + out.err and not keystore.KEY_FILE.exists()

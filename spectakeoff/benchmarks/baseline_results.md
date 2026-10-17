@@ -32,4 +32,4 @@ CSV etaloni aptver tikai izvilktās rindas un ar roku atrastos izlaidumus, tāp�
 
 - Etaloni ir mazi (lielākajā daļā 2–12 prasību), ticamības intervāli ir plaši.
 - Noteikumi tika pielāgoti, skatoties uz šiem pašiem etaloniem, tāpēc tie **nav neatkarīgs tests** — rezultāti, visticamāk, ir optimistiski.
-- `--llm` salīdzinājums vēl nav izmērīts: sesijā nebija `ANTHROPIC_API_KEY`. Tas tiks pievienots `llm_results.md`.
+- `--llm` salīdzinājums ir `llm_results.md`.

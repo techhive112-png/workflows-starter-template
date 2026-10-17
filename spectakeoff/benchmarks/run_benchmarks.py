@@ -1,6 +1,9 @@
 """Precision benchmarks on public specifications.
 
-    python benchmarks/run_benchmarks.py [--cache DIR]
+    python benchmarks/run_benchmarks.py [--cache DIR] [--llm [--llm-model MODEL]]
+
+With --llm every run also uses the language-model pass (costs API tokens); token usage is added
+to the report under "llm".
 
 Downloads the public PDFs (FAA, WBDG/UFGS) into a cache directory, runs
 SpecTakeoff and compares the extracted requirement rows with the labelled
@@ -64,30 +67,47 @@ def score(findings: list[dict], labels_csv: Path) -> dict:
             "precision_on_labelled": round(tp / (tp + fp), 4) if tp + fp else None}
 
 
+def llm_usage(out: Path) -> dict:
+    """Token usage of the --llm pass, summed over the sources of one run."""
+    total: Counter = Counter()
+    for s in json.loads(out.with_suffix(".run_report.json").read_text(encoding="utf-8"))["sources"]:
+        total.update({k: v for k, v in (s.get("llm") or {}).items() if isinstance(v, int)})
+    return dict(total)
+
+
 def main() -> int:
     from spectakeoff.cli import main as cli
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", default=str(Path(tempfile.gettempdir()) / "spectakeoff_bench"))
+    ap.add_argument("--llm", action="store_true", help="also run the language-model pass (costs API tokens)")
+    ap.add_argument("--llm-model", default="", help="model id passed to spectakeoff --llm-model")
     a = ap.parse_args()
     cache = Path(a.cache)
     cache.mkdir(parents=True, exist_ok=True)
+    extra, prefix = ["--no-overlays"], ""
+    if a.llm:
+        extra += ["--llm", "--llm-cache", str(cache / "llm_cache.json")]
+        extra += ["--llm-model", a.llm_model] if a.llm_model else []
+        prefix = "llm_"
     report = {}
     for labels, files in SETS.items():
         paths = [str(fetch(cache, name)) for name in files]
-        out = cache / (Path(labels).stem + ".xlsx")
-        if cli(paths + ["-o", str(out), "--no-overlays"]) != 0:
+        out = cache / (prefix + Path(labels).stem + ".xlsx")
+        if cli(paths + ["-o", str(out)] + extra) != 0:
             return 1
         found = json.loads(out.with_suffix(".findings.json").read_text(encoding="utf-8"))["findings"]
         report[labels] = score(found, HERE / labels)
+        if a.llm:
+            report[labels]["llm"] = llm_usage(out)
     # fully labelled page samples (every sentence marked) -> recall AND precision
     from spectakeoff.evaluate import evaluate, read_gold
 
     for gold_path in sorted(HERE.glob("gold_*.xlsx")):
         gold, meta = read_gold(gold_path)
         paths = [str(fetch(cache, s["name"])) for s in meta["sources"]]
-        out = cache / (gold_path.stem + ".xlsx")
-        if cli(paths + ["-o", str(out), "--no-overlays"]) != 0:
+        out = cache / (prefix + gold_path.stem + ".xlsx")
+        if cli(paths + ["-o", str(out)] + extra) != 0:
             return 1
         found = json.loads(out.with_suffix(".findings.json").read_text(encoding="utf-8"))["findings"]
         r = evaluate(found, gold)
@@ -95,6 +115,8 @@ def main() -> int:
                                                    "recall", "recall_ci95", "precision", "precision_ci95")}
         report[gold_path.name]["missed"] = [m["text"][:120] for m in r["missed"]]
         report[gold_path.name]["false_positives"] = [m["found"][:120] for m in r["false_positives"]]
+        if a.llm:
+            report[gold_path.name]["llm"] = llm_usage(out)
     print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0
 

@@ -228,7 +228,7 @@ def cmd_key(a: argparse.Namespace) -> int:
         return 0
     if not a.no_check and not _have_sdk():
         return 2
-    print("Ielīmē API atslēgu no console.anthropic.com → API Keys (teksts netiks rādīts) un spied Enter:")
+    print("Ielīmē API atslēgu no platform.claude.com → API Keys (teksts netiks rādīts) un spied Enter:")
     key = keystore.normalise(getpass.getpass(""))
     err = keystore.problem(key) or ("" if a.no_check else keystore.verify(key))
     if err:
